@@ -33,7 +33,8 @@
 
 unsigned long starttime, stoptime, deltatime;
 bool started = false; // State variable to track system start/stop
-int R = ; //TODO: Input shunt resister value (in Ohms)
+int R = 10; //TODO: Input shunt resister value (in Ohms)
+float ADC0, ADC1;
 
 void setup() { // the setup routine runs once when you press reset:
 
@@ -54,12 +55,11 @@ void loop() { // the loop routine runs over and over again forever (or until res
 
   // read the pushButton pin:
   bool buttonState = digitalRead(pushButton);
-  
   // TODO: 1. Set up logic to run trial
     //Useful to debug button hardware:
     //Serial.println(buttonState);
 
-
+  if (buttonState){
 
     // On trial start:
     started = true; //Keep track of trial start
@@ -69,23 +69,24 @@ void loop() { // the loop routine runs over and over again forever (or until res
     // 3. Measure start time
     starttime = millis();
     Serial.println("start \t stop \t dt \t I \t V");
-    Serial.print(starttime);
+    Serial.println(starttime);
 
-
-
+    // 4. Read ADC voltages
+    ADC0 = analogRead(adc0) * 5.0/1023.0; // Convert 10-bit value (0-1023) to voltage (0-5 V)
+    ADC1 = analogRead(adc1) * 5.0/1023.0;
+    Serial.println(ADC0);
+    Serial.println(ADC1);
+  } else if (!buttonState & started == true){
     // On trial finish:
     // 3. Read timers
     stoptime = millis(); //stop timer
-    // 4. Read ADC voltages
-    float ADC0 = analogRead(adc0) * 5.0/1023.0; // Convert 10-bit value (0-1023) to voltage (0-5 V)
-    float ADC1 = analogRead(adc1) * 5.0/1023.0;
     // 5. Stop motor
     run_motor(A, 0); //turn motor off
     digitalWrite(ledPin, LOW); // turn LED off
     // 6. Calculate current, motor voltage, deltatime
-    float current = ; //TODO (Use V=IR across small resistor, convert to mA)
-    float motorVoltage = ; //TODO
-    deltatime = ; //TODO
+    float current = (ADC0-ADC1)/R; //TODO (Use V=IR across small resistor, convert to mA)
+    float motorVoltage = ADC1; //TODO
+    deltatime = stoptime-starttime; //TODO
     // 7. Print results to serial monitor
     Serial.print(" \t ");
     Serial.print(stoptime); //print stop time
@@ -97,6 +98,6 @@ void loop() { // the loop routine runs over and over again forever (or until res
     Serial.print(motorVoltage);
     Serial.println("V");
     started = false; // Reset for next trial
-
+  }
 
 }
