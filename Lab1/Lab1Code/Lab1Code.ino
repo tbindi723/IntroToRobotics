@@ -59,8 +59,7 @@ void loop() { // the loop routine runs over and over again forever (or until res
     //Useful to debug button hardware:
     //Serial.println(buttonState);
 
-  if (buttonState){
-
+  if (buttonState & !started){
     // On trial start:
     started = true; //Keep track of trial start
     // 2. Run motor (turn on LED if you wish)
@@ -70,13 +69,13 @@ void loop() { // the loop routine runs over and over again forever (or until res
     starttime = millis();
     Serial.println("start \t stop \t dt \t I \t V");
     Serial.println(starttime);
-
+  }else if (buttonState & started){
     // 4. Read ADC voltages
     ADC0 = analogRead(adc0) * 5.0/1023.0; // Convert 10-bit value (0-1023) to voltage (0-5 V)
     ADC1 = analogRead(adc1) * 5.0/1023.0;
-    Serial.println(ADC0);
-    Serial.println(ADC1);
-  } else if (!buttonState & started == true){
+    //Serial.println(ADC0);
+    //Serial.println(ADC1);
+  } else if (!buttonState & started){
     // On trial finish:
     // 3. Read timers
     stoptime = millis(); //stop timer
@@ -86,7 +85,7 @@ void loop() { // the loop routine runs over and over again forever (or until res
     // 6. Calculate current, motor voltage, deltatime
     float current = (ADC0-ADC1)/R; //TODO (Use V=IR across small resistor, convert to mA)
     float motorVoltage = ADC1; //TODO
-    deltatime = stoptime-starttime; //TODO
+    deltatime = (stoptime-starttime); //TODO
     // 7. Print results to serial monitor
     Serial.print(" \t ");
     Serial.print(stoptime); //print stop time
