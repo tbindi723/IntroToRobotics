@@ -12,7 +12,7 @@
 #define ledPin 13 // Builtin LED is connected to Pin 13
 
 // H-Bridge initialization
-#define SHIELD true // If you have a kit with the moto shield, set SHIELD to true
+#define SHIELD false // If you have a kit with the moto shield, set SHIELD to true
 // If you have the Dual H-Bridge controller w/o the shield, set SHIELD to false
 
 #define A 0 // Use letters instead of numbers for motors.ino
@@ -59,7 +59,7 @@ void loop() { // the loop routine runs over and over again forever (or until res
     //Useful to debug button hardware:
     //Serial.println(buttonState);
 
-  if (buttonState & !started){
+  if (!buttonState & !started){
     // On trial start:
     started = true; //Keep track of trial start
     // 2. Run motor (turn on LED if you wish)
@@ -69,13 +69,12 @@ void loop() { // the loop routine runs over and over again forever (or until res
     starttime = millis();
     Serial.println("start \t stop \t dt \t I \t V");
     Serial.println(starttime);
-  }else if (buttonState & started){
+  }else if (!buttonState & started){
     // 4. Read ADC voltages
     ADC0 = analogRead(adc0) * 5.0/1023.0; // Convert 10-bit value (0-1023) to voltage (0-5 V)
     ADC1 = analogRead(adc1) * 5.0/1023.0;
-    //Serial.println(ADC0);
-    //Serial.println(ADC1);
-  } else if (!buttonState & started){
+    
+  } else if (buttonState & started){
     // On trial finish:
     // 3. Read timers
     stoptime = millis(); //stop timer
@@ -92,8 +91,8 @@ void loop() { // the loop routine runs over and over again forever (or until res
     Serial.print("\t ");
     Serial.print(deltatime);
     Serial.print("ms\t ");
-    Serial.print(current*1000);
-    Serial.print("mA\t ");
+    //Serial.print(current*1000);
+    //Serial.print("mA\t ");
     Serial.print(motorVoltage);
     Serial.println("V");
     started = false; // Reset for next trial
