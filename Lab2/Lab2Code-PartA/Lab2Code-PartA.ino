@@ -15,7 +15,7 @@
 
 // If you have a kit with the moto shield, set this to true
 // If you have the Dual H-Bridge controller w/o the shield, set to false
-#define SHIELD true
+#define SHIELD false
 
 // Defining these allows us to use letters in place of binary when
 // controlling our motor(s)
@@ -40,18 +40,18 @@
 #define FORWARD    0
 #define LEFT       1
 #define RIGHT     -1
-#define pushButton 2
+#define pushButton 11
 
 // the following converts centimeters into milliseconds
 #define milliSecondsPerCM    22  //CHANGE THIS ACCORDING TO YOUR BOT
 #define milliSecondsPer90Deg 185 //CHANGE THIS ACCORDNING TO YOUR BOT
-#define PWM_A 255 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
-#define PWM_B 255 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
+#define PWM_A 100 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
+#define PWM_B 100 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
 
 // the itemized list of moves for the robot as a 1D array
 // this setup assumes that all the turns are 90 degrees and that all motions are pairs of drives and turns.
 int moves[] = {140, 90, 60, 180, 100, 60, 100, 150};
-int turns[] = {LEFT, RIGHT, RIGHT, RIGHT, LEFT, RIGHT, RIGHT, RIGHT}
+int turns[] = {LEFT, RIGHT, RIGHT, RIGHT, LEFT, RIGHT, RIGHT, RIGHT};
 
 void setup() {
   // set up the motor drive ports
@@ -75,7 +75,7 @@ void loop() {
        from the board is digitalRead(pinNumber) and if statements
        need a double equals sign (==) for comparisons
     */
-
+    while(digitalRead(pushButton));
     delay(250);
     //Forward Leg of each step
     Serial.print("Step #:");
