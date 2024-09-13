@@ -18,7 +18,7 @@
      the total degrees traveled, and divide. Use the average of multiple trials. ex: 273 ms
 */
  
- #define pushButton 2
+ #define pushButton 11
 // If you have a kit with the moto shield, set this to true
 // If you have the Dual H-Bridge controller w/o the shield, set to false
 #define SHIELD true
