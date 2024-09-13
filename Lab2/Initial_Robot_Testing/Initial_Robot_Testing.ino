@@ -35,10 +35,10 @@
 #define motorBdir 13
  
 //Driver Pin variable
-#define IN1 9
-#define IN2 10
-#define IN3 5
-#define IN4 6
+#define IN1 9 //black
+#define IN2 10  //white
+#define IN3 5 //orange
+#define IN4 6 //blue
 
 bool go = false;
 
