@@ -11,7 +11,7 @@
 
 // If you have a kit with the moto shield, set this to true
 // If you have the Dual H-Bridge controller w/o the shield, set to false
-#define SHIELD true
+#define SHIELD false
 //SHIELD Pin varables - cannot be changed
 #define motorApwm 3
 #define motorAdir 12
@@ -61,6 +61,9 @@ volatile unsigned int rightEncoderCount = 0;
 #define GAIN_B 5
 // how many encoder counts from your goal are accepteable?
 #define distTolerance 3 
+
+// PID Control Constants
+
 
 // Deadband power settings
 // The min PWM required for your robot's wheels to still move
