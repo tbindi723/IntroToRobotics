@@ -44,13 +44,13 @@
 
 // the following converts centimeters into milliseconds
 #define milliSecondsPerCM    20  //CHANGE THIS ACCORDING TO YOUR BOT
-#define milliSecondsPer90Deg 320 //CHANGE THIS ACCORDNING TO YOUR BOT
-#define PWM_A 143 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
+#define milliSecondsPer90Deg 230 //CHANGE THIS ACCORDNING TO YOUR BOT
+#define PWM_A 141 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
 #define PWM_B 100 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
 
 // the itemized list of moves for the robot as a 1D array
 // this setup assumes that all the turns are 90 degrees and that all motions are pairs of drives and turns.
-int moves[] = {180, 90, 60, 180, 100, 60, 100, 150};
+int moves[] = {140, 90, 60, 180, 100, 60, 100, 150};
 int turns[] = {LEFT, RIGHT, RIGHT, RIGHT, LEFT, RIGHT, RIGHT, RIGHT};
 
 void setup() {
@@ -65,7 +65,7 @@ void setup() {
 void loop() {
   int i, dist, dir;
   long time;
-
+  while(digitalRead(pushButton));
   //This for loop steps (or iterates) through the array 'moves'
   for (i = 0; i < sizeof(moves) / 2; i = i + 1) {
 
@@ -75,7 +75,7 @@ void loop() {
        from the board is digitalRead(pinNumber) and if statements
        need a double equals sign (==) for comparisons
     */
-    while(digitalRead(pushButton));
+    //while(digitalRead(pushButton));
     delay(250);
     //Forward Leg of each step
     Serial.print("Step #:");
