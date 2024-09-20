@@ -43,14 +43,14 @@
 #define pushButton 11
 
 // the following converts centimeters into milliseconds
-#define milliSecondsPerCM    22  //CHANGE THIS ACCORDING TO YOUR BOT
-#define milliSecondsPer90Deg 185 //CHANGE THIS ACCORDNING TO YOUR BOT
-#define PWM_A 230 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
-#define PWM_B 180 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
+#define milliSecondsPerCM    20  //CHANGE THIS ACCORDING TO YOUR BOT
+#define milliSecondsPer90Deg 320 //CHANGE THIS ACCORDNING TO YOUR BOT
+#define PWM_A 143 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
+#define PWM_B 100 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
 
 // the itemized list of moves for the robot as a 1D array
 // this setup assumes that all the turns are 90 degrees and that all motions are pairs of drives and turns.
-int moves[] = {140, 90, 60, 180, 100, 60, 100, 150};
+int moves[] = {180, 90, 60, 180, 100, 60, 100, 150};
 int turns[] = {LEFT, RIGHT, RIGHT, RIGHT, LEFT, RIGHT, RIGHT, RIGHT};
 
 void setup() {
@@ -81,7 +81,7 @@ void loop() {
     Serial.print("Step #:");
     Serial.println(i);
     dist = moves[i];
-    Serial.print("Forward for");
+    Serial.print("Forward for ");
     time = Forward(dist);
     Serial.print(time);
     Serial.println(" ms");
@@ -117,6 +117,7 @@ unsigned long Forward(int distance) {
   unsigned long t;
   t = distance * milliSecondsPerCM; //Time to keep motors on
 
+
   //To drive forward, motors go in the same direction
   run_motor(A, PWM_A); //change PWM to your calibrations
   run_motor(B, PWM_B); //change PWM to your calibrations
@@ -131,7 +132,21 @@ unsigned long Turn(int degrees) {
   unsigned long t;
   int sign = degrees / abs(degrees); //Find if left or right
   t = (abs(degrees) / 90) * milliSecondsPer90Deg; //Time to keep motors on
-
+  if(sign==LEFT){
+    run_motor(A, -PWM_A); //change PWM to your calibrations
+    run_motor(B, PWM_B); //change PWM to your calibrations
+    delay(t);
+    run_motor(A, 0);
+    run_motor(B, 0);
+    return (t);
+  }else if(sign == RIGHT){
+    run_motor(A, PWM_A); //change PWM to your calibrations
+    run_motor(B, -PWM_B); //change PWM to your calibrations
+    delay(t);
+    run_motor(A, 0);
+    run_motor(B, 0);
+    return (t);
+  }
   // The run motor command takes in a PWM value from -255 (full reverse) to 255 (full forward)
   /* TODO
    * Using the Forward function as a guide,
