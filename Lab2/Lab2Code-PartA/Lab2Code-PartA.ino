@@ -65,7 +65,7 @@ void setup() {
 void loop() {
   int i, dist, dir;
   long time;
-  while(digitalRead(pushButton));
+  //while(digitalRead(pushButton));
   //This for loop steps (or iterates) through the array 'moves'
   for (i = 0; i < sizeof(moves) / 2; i = i + 1) {
 
@@ -75,7 +75,7 @@ void loop() {
        from the board is digitalRead(pinNumber) and if statements
        need a double equals sign (==) for comparisons
     */
-    //while(digitalRead(pushButton));
+    while(digitalRead(pushButton));
     delay(250);
     //Forward Leg of each step
     Serial.print("Step #:");
