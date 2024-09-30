@@ -45,8 +45,8 @@
 // the following converts centimeters into milliseconds
 #define milliSecondsPerCM    20  //CHANGE THIS ACCORDING TO YOUR BOT
 #define milliSecondsPer90Deg 230 //CHANGE THIS ACCORDNING TO YOUR BOT
-#define PWM_A 141 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
-#define PWM_B 100 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT
+#define PWM_A 141 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT (RIGHT)
+#define PWM_B 100 //CHANGE THIS TO GET YOUR BOT TO DRIVE STRAIGHT (LEFT)
 
 // the itemized list of moves for the robot as a 1D array
 // this setup assumes that all the turns are 90 degrees and that all motions are pairs of drives and turns.
