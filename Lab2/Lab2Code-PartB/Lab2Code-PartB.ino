@@ -52,15 +52,17 @@ volatile unsigned int rightEncoderCount = 0;
 
 // Drive constants - dependent on robot configuration
 #define EncoderCountsPerRev 24.0 // Encoder counts per wheel revolution
-#define DistancePerRev      26.4 // Distance in CM per wheel revolution
+#define DistancePerRev      28.0 // Distance in CM per wheel revolution
 #define DegreesPerRev       22.3 // Degrees turned by your robot per wheel revolution
 
 // Proportional Control constants
 // what are your ratios of PWM:Encoder Count error?
 #define GAIN_A 5
-#define GAIN_B 3.9
+#define GAIN_B 4.2
+#define turnGainA 1.7
+#define turnGainB 1
 // how many encoder counts from your goal are accepteable?
-#define distTolerance 3 
+#define distTolerance 1 
 
 // PID Control Constants
 
@@ -68,15 +70,15 @@ volatile unsigned int rightEncoderCount = 0;
 // Deadband power settings
 // The min PWM required for your robot's wheels to still move
 // May be different for each motor
-#define deadband_A 63 //(Right)
-#define deadband_B 55 //(Left)
+#define deadband_A 75 //(Right)
+#define deadband_B 50 //(Left)
 
 
 // Lab specific variables
-//int moves[] = {FORWARD, LEFT, FORWARD, LEFT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD}; // Fill in this array will forward distances and turn directions in the maze (Like part A)
-//int distance[] = {30, 30, 30, 120, 60, 30};
-int moves[] = {FORWARD, RIGHT};
-int distance[] = {120};
+int moves[] = {FORWARD, LEFT, FORWARD, LEFT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD}; // Fill in this array will forward distances and turn directions in the maze (Like part A)
+int distance[] = {30, 30, 30, 100, 70, 30};
+//int moves[] = {FORWARD, RIGHT};
+//int distance[] = {120};
 
 void setup() {
   // set stuff up
@@ -112,16 +114,16 @@ void setup() {
 void loop()
 {
   int j = 0;
-  /*
+  
   while (digitalRead(pushButton) == 1); // wait for button push
   delay(50); // Allow button time to debounce.
   while (digitalRead(pushButton) == 0); // wait for button release
-  */
+  
 
   for (int i = 0; i < sizeof(moves)/2; i++) { // Loop through entire moves list
-    while (digitalRead(pushButton) == 1); // wait for button push
-    delay(50); // Allow button time to debounce.
-    while (digitalRead(pushButton) == 0); // wait for button release
+    //while (digitalRead(pushButton) == 1); // wait for button push
+    //delay(50); // Allow button time to debounce.
+    //while (digitalRead(pushButton) == 0); // wait for button release
     if(moves[i]==FORWARD){
       drive(distance[j]);
       j++;
@@ -131,7 +133,7 @@ void loop()
     }
     run_motor(A, 0);
     run_motor(B, 0);
-    delay(1000);
+    //delay(1000);
   }
   j=0;
 }
@@ -156,11 +158,22 @@ int drive(float distance)
   errorRight =  distTolerance + 1;
 
   // Begin proportional control until move is complete
-  while (errorLeft > distTolerance || errorRight > distTolerance)
+  while (errorLeft > distTolerance && errorRight > distTolerance)
   {
+    if(errorLeft>distTolerance){
+      cmdLeft =  proportionalControl(GAIN_A, deadband_A, errorLeft, LEFT);
+
+    } else {
+      //cmdLeft = 0;
+    }
+    if(errorRight>distTolerance){
+      cmdRight = proportionalControl(GAIN_B, deadband_B, errorRight, RIGHT);
+    } else {
+      //cmdRight = 0;
+    }
     // Get PWM values from proportionalControl function
-    cmdLeft =  proportionalControl(GAIN_A, deadband_A, errorLeft, LEFT);
-    cmdRight = proportionalControl(GAIN_B, deadband_B, errorRight, RIGHT);
+    
+    
 
     // Set new PWMs
     run_motor(A, cmdLeft);
@@ -172,6 +185,7 @@ int drive(float distance)
     errorRight = countsDesired - rightEncoderCount; //TODO
     
     // Some print statements, for debugging
+    /*
     Serial.print(errorLeft);
     Serial.print(" ");
     Serial.print(cmdLeft);
@@ -179,9 +193,11 @@ int drive(float distance)
     Serial.print(errorRight);
     Serial.print(" ");
     Serial.println(cmdRight);
+    */
     
   }
-
+  run_motor(A, 0);
+  run_motor(B, 0);
 }
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,10 +215,10 @@ int proportionalControl(int gain, int deadband, int error, int motor)
     return (0);
   }
   if (motor== LEFT){
-    max = 230;
+    max = 170;
   }
   else{
-    max = 180;
+    max = 120;
   }
   int pwm = (gain * error); // Proportional control
   pwm = constrain(pwm,deadband,max); // Bind value between motor's min and max
@@ -214,8 +230,8 @@ int proportionalControl(int gain, int deadband, int error, int motor)
 unsigned long Turn(int sign) {
   int leftCount = 11;
   int rightCount = 11;
-  int errorLeft = 5;
-  int errorRight = 5;
+  int errorLeft = 2;
+  int errorRight = 2;
   int Gainleft, Gainright;
 
   // reset current encoder counts
@@ -223,12 +239,23 @@ unsigned long Turn(int sign) {
   rightEncoderCount = 0;
 
   if(sign==LEFT){
-    while (errorLeft > distTolerance){
-      errorLeft = leftCount - leftEncoderCount;
-      errorRight = rightCount - rightEncoderCount;
+    while (errorLeft > distTolerance && errorRight > distTolerance){
+      if(errorLeft>distTolerance){
+        errorLeft = leftCount - leftEncoderCount;
+        Gainleft = proportionalControl(turnGainA, deadband_A, errorLeft, LEFT);
+      }else{
+        Gainleft = 0;
+      }
+      if(errorRight>distTolerance){
+        errorRight = rightCount - rightEncoderCount;
+        Gainright = proportionalControl(turnGainB, deadband_B, errorRight, RIGHT);
+      }else{
+        Gainright = 0;
+      }
+      
 
-      Gainleft = proportionalControl(GAIN_A, deadband_A, errorLeft, LEFT);
-      Gainright = proportionalControl(GAIN_B, deadband_B, errorRight, RIGHT);
+      
+      
 
       run_motor(A, -Gainleft); //change PWM to your calibrations
       run_motor(B, Gainright); //change PWM to your calibrations
@@ -237,13 +264,19 @@ unsigned long Turn(int sign) {
     run_motor(A, 0); //CHECK IF WE CAN REMOVE STOP
     run_motor(B, 0);
   }else if(sign == RIGHT){
-    while (errorRight > distTolerance){
-      errorLeft = leftCount - leftEncoderCount;
-      errorRight = rightCount - rightEncoderCount;
-
-      Gainleft = proportionalControl(GAIN_A, deadband_A, errorLeft, LEFT);
-      Gainright = proportionalControl(GAIN_B, deadband_B, errorRight, RIGHT);
-
+    while ( errorRight > 1 && errorLeft > 1){
+      if(errorRight > 1){
+        errorRight = rightCount - rightEncoderCount;
+        Gainright = proportionalControl(turnGainB, deadband_B, errorRight, RIGHT);
+      }else{
+        Gainright = 0;
+      }
+      if(errorLeft > 1){
+        errorLeft = leftCount - leftEncoderCount;
+        Gainleft = proportionalControl(turnGainA, deadband_A, errorLeft, LEFT);
+      }else{
+        Gainleft = 0;
+      }
       run_motor(A, Gainleft); //change PWM to your calibrations
       run_motor(B, -Gainright); //change PWM to your calibrations
       
