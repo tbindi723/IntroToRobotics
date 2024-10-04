@@ -3,16 +3,6 @@
   20230127 - gknave
 */
 
-// Complete Tasks in Initial_Robot_Testing.ino first!!
-
-/* Program TODO LIST
-  1) Change the milliSecondsPerCM constant to the value you found in testing
-  2) Change the milliSecondsPer90Deg constant to the value you found in testing
-  3) Change the PWM of the forward function to the values you found in testing
-  4) Write code for the button pause functionality
-  5) Write your own turn function
-*/
-
 // If you have a kit with the moto shield, set this to true
 // If you have the Dual H-Bridge controller w/o the shield, set to false
 #define SHIELD false
@@ -68,13 +58,6 @@ void loop() {
   //while(digitalRead(pushButton));
   //This for loop steps (or iterates) through the array 'moves'
   for (i = 0; i < sizeof(moves) / 2; i = i + 1) {
-
-    /* TODO
-       Write code here to make the program pause until
-       the button has been pressed. Remember that getting a value
-       from the board is digitalRead(pinNumber) and if statements
-       need a double equals sign (==) for comparisons
-    */
     while(digitalRead(pushButton));
     delay(250);
     //Forward Leg of each step
@@ -147,11 +130,5 @@ unsigned long Turn(int degrees) {
     run_motor(B, 0);
     return (t);
   }
-  // The run motor command takes in a PWM value from -255 (full reverse) to 255 (full forward)
-  /* TODO
-   * Using the Forward function as a guide,
-   * Write commands in this Turn function to power the
-   * motors in opposite directions for the calculated time
-   * and then shut off
-   */
+  
 }
