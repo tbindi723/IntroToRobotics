@@ -1,308 +1,230 @@
-/* a closed loop proportional control
+/* 
+   A closed-loop proportional control system
    gkn 20230209
 */
 
-// Include Libraries
-// This is the PinChangeInterrupt package by NicoHood, 
-//      available in the library search (Sketch->Include Libraries->Manage Libraries)
+// Include the necessary library for Pin Change Interrupts
+// This library is available via the Arduino Library Manager
 #include <PinChangeInterrupt.h>
 
 // Motor driver definitions
 
-// If you have a kit with the moto shield, set this to true
-// If you have the Dual H-Bridge controller w/o the shield, set to false
+// SHIELD variable: Set to true if using the moto shield, false if using a Dual H-Bridge controller without the shield
 #define SHIELD false
-//SHIELD Pin varables - cannot be changed
-#define motorApwm 3
-#define motorAdir 12
-#define motorBpwm 11
-#define motorBdir 13
-//Driver Pin variable - any 4 analog pins (marked with ~ on your board)
-#define IN1 9
-#define IN2 10
-#define IN3 5
-#define IN4 6
 
-// Lab Specific definitions
+// Shield pin definitions (cannot be changed)
+#define motorApwm 3  // PWM pin for motor A
+#define motorAdir 12 // Direction pin for motor A
+#define motorBpwm 11 // PWM pin for motor B
+#define motorBdir 13 // Direction pin for motor B
 
-// Defining these allows us to use letters in place of binary when
-// controlling our motors
+// Driver pin definitions for Dual H-Bridge (analog pins marked with ~ on your board)
+#define IN1 9  // IN1 pin for motor driver
+#define IN2 10 // IN2 pin for motor driver
+#define IN3 5  // IN3 pin for motor driver
+#define IN4 6  // IN4 pin for motor driver
+
+// Lab specific definitions
+
+// Constants to represent motor A and B for easier reference in the code
 #define A 0
 #define B 1
-#define pushButton 11 // install a Pullup button with its output into Pin 2
 
-// You may want to define pins for buttons as bump sensors. Pay attention to other used pins.
+// Pin for a push button connected to pin 11 (with internal pull-up resistor)
+#define pushButton 11 
 
+// Pins for wheel encoders (left and right motors)
+#define EncoderMotorLeft  7  // Pin for the left encoder
+#define EncoderMotorRight 8  // Pin for the right encoder
 
-// The digital pins we'll use for the encoders
-#define EncoderMotorLeft  7
-#define EncoderMotorRight 8
-
-// Initialize encoder counts to 0
-// These are volatile because they change during interrupt functions
+// Encoder counts for left and right motors, declared as volatile since they are updated in interrupt service routines
 volatile unsigned int leftEncoderCount = 0;
 volatile unsigned int rightEncoderCount = 0;
 
-//These are to build your moves array, a la Lab 2
+// Move definitions for different directions
 #define FORWARD             0
 #define LEFT                1
 #define RIGHT              -1
 
-// CONSTANTS TO MODIFY IN THIS LAB
-
-// Drive constants - dependent on robot configuration
+// Constants for robot drive configuration
 #define EncoderCountsPerRev 24.0 // Encoder counts per wheel revolution
 #define DistancePerRev      28.0 // Distance in CM per wheel revolution
-#define DegreesPerRev       22.3 // Degrees turned by your robot per wheel revolution
+#define DegreesPerRev       22.3 // Degrees turned by the robot per wheel revolution
 
-// Proportional Control constants
-// what are your ratios of PWM:Encoder Count error?
-#define GAIN_A 5
-#define GAIN_B 4.2
-#define turnGainA 1.7
-#define turnGainB 1
-// how many encoder counts from your goal are accepteable?
-#define distTolerance 1 
+// Proportional control constants
+#define GAIN_A 5          // Gain for motor A (right motor)
+#define GAIN_B 4.2        // Gain for motor B (left motor)
+#define turnGainA 1.7     // Gain for turning (motor A)
+#define turnGainB 1       // Gain for turning (motor B)
+#define distTolerance 1   // Distance tolerance (acceptable error for encoder counts)
 
-// PID Control Constants
+// Deadband power settings (minimum PWM to keep the wheels moving)
+#define deadband_A 75 // Minimum PWM for motor A
+#define deadband_B 50 // Minimum PWM for motor B
 
-
-// Deadband power settings
-// The min PWM required for your robot's wheels to still move
-// May be different for each motor
-#define deadband_A 75 //(Right)
-#define deadband_B 50 //(Left)
-
-
-// Lab specific variables
-int moves[] = {FORWARD, LEFT, FORWARD, LEFT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD}; // Fill in this array will forward distances and turn directions in the maze (Like part A)
+// Define the movement sequence (forward, left, right, etc.) for navigating a maze
+int moves[] = {FORWARD, LEFT, FORWARD, LEFT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD}; 
+// Define the distance to travel for each move
 int distance[] = {30, 30, 30, 100, 70, 30};
-//int moves[] = {FORWARD, RIGHT};
-//int distance[] = {120};
 
 void setup() {
-  // set stuff up
+  // Initialize the serial communication and motor setup
   Serial.begin(9600);
-  motor_setup();
-  pinMode(pushButton, INPUT_PULLUP);
-  
-  // add additional pinMode statements for any bump sensors
-  
+  motor_setup(); // Function to set up the motor pins
+  pinMode(pushButton, INPUT_PULLUP); // Configure the push button with a pull-up resistor
 
-  // Attaching Wheel Encoder Interrupts
+  // Print message and set up encoders for both motors
   Serial.print("Encoder Testing Program ");
   Serial.print("Now setting up the Left Encoder: Pin ");
   Serial.print(EncoderMotorLeft);
   Serial.println();
-  pinMode(EncoderMotorLeft, INPUT_PULLUP); //set the pin to input
+  pinMode(EncoderMotorLeft, INPUT_PULLUP); // Set left encoder pin as input
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(EncoderMotorLeft), indexLeftEncoderCount, CHANGE); // Set interrupt for left encoder
 
-  // The following code sets up the PinChange Interrupt
-  // Valid interrupt modes are: RISING, FALLING or CHANGE
-  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(EncoderMotorLeft), indexLeftEncoderCount, CHANGE);
-  // if you "really" want to know what's going on read the PinChange.h file :)
-  /////////////////////////////////////////////////
   Serial.print("Now setting up the Right Encoder: Pin ");
   Serial.print(EncoderMotorRight);
   Serial.println();
-  pinMode(EncoderMotorRight, INPUT_PULLUP);     //set the pin to input
-  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(EncoderMotorRight), indexRightEncoderCount, CHANGE);
+  pinMode(EncoderMotorRight, INPUT_PULLUP); // Set right encoder pin as input
+  attachPinChangeInterrupt(digitalPinToPinChangeInterrupt(EncoderMotorRight), indexRightEncoderCount, CHANGE); // Set interrupt for right encoder
 }
 
-
-
-/////////////////////// loop() ////////////////////////////////////
-void loop()
-{
+void loop() {
   int j = 0;
-  
-  while (digitalRead(pushButton) == 1); // wait for button push
-  delay(50); // Allow button time to debounce.
-  while (digitalRead(pushButton) == 0); // wait for button release
-  
 
-  for (int i = 0; i < sizeof(moves)/2; i++) { // Loop through entire moves list
-    //while (digitalRead(pushButton) == 1); // wait for button push
-    //delay(50); // Allow button time to debounce.
-    //while (digitalRead(pushButton) == 0); // wait for button release
-    if(moves[i]==FORWARD){
-      drive(distance[j]);
+  // Wait for the push button to be pressed and released
+  while (digitalRead(pushButton) == 1); // Wait for button press
+  delay(50); // Debounce delay
+  while (digitalRead(pushButton) == 0); // Wait for button release
+
+  // Loop through the move sequence and execute the corresponding actions
+  for (int i = 0; i < sizeof(moves)/2; i++) { 
+    if(moves[i] == FORWARD){
+      drive(distance[j]); // Drive forward for the specified distance
       j++;
     }
-    else{
-      Turn(moves[i]);
+    else {
+      Turn(moves[i]); // Turn in the specified direction (left or right)
     }
+    // Stop the motors after each move
     run_motor(A, 0);
     run_motor(B, 0);
-    //delay(1000);
   }
-  j=0;
+  j = 0; // Reset the distance index
 }
-//////////////////////////////// end of loop() /////////////////////////////////
 
-
-////////////////////////////////////////////////////////////////////////////////
-int drive(float distance)
-{
-  // create variables needed for this function
+// Function to drive the robot forward for a specified distance
+int drive(float distance) {
   int countsDesired, cmdLeft, cmdRight, errorLeft, errorRight;
 
-  // TODO: Find the number of encoder counts based on the distance given, and the configuration of your encoders and wheels
-  countsDesired = (distance/DistancePerRev)*EncoderCountsPerRev;
+  // Calculate the number of encoder counts required to cover the given distance
+  countsDesired = (distance / DistancePerRev) * EncoderCountsPerRev;
 
-  // reset current encoder counts
+  // Reset the current encoder counts
   leftEncoderCount = 0;
   rightEncoderCount = 0;
-  
-  // we temporarily set the errors greater than our tolerance so our first test gets us into the loop
+
+  // Initialize the errors to values greater than tolerance to enter the loop
   errorLeft = distTolerance + 1;
-  errorRight =  distTolerance + 1;
+  errorRight = distTolerance + 1;
 
-  // Begin proportional control until move is complete
-  while (errorLeft > distTolerance && errorRight > distTolerance)
-  {
-    if(errorLeft>distTolerance){
-      cmdLeft =  proportionalControl(GAIN_A, deadband_A, errorLeft, LEFT);
-
-    } else {
-      //cmdLeft = 0;
+  // Proportional control loop
+  while (errorLeft > distTolerance && errorRight > distTolerance) {
+    if (errorLeft > distTolerance) {
+      cmdLeft = proportionalControl(GAIN_A, deadband_A, errorLeft, LEFT); // Control motor A
     }
-    if(errorRight>distTolerance){
-      cmdRight = proportionalControl(GAIN_B, deadband_B, errorRight, RIGHT);
-    } else {
-      //cmdRight = 0;
+    if (errorRight > distTolerance) {
+      cmdRight = proportionalControl(GAIN_B, deadband_B, errorRight, RIGHT); // Control motor B
     }
-    // Get PWM values from proportionalControl function
-    
-    
 
-    // Set new PWMs
+    // Set the motor PWMs
     run_motor(A, cmdLeft);
     run_motor(B, cmdRight);
 
-    // Update encoder error
-    // Error is the number of encoder counts between here and the destination
-    errorLeft = countsDesired - leftEncoderCount; // TODO
-    errorRight = countsDesired - rightEncoderCount; //TODO
-    
-    // Some print statements, for debugging
-    /*
-    Serial.print(errorLeft);
-    Serial.print(" ");
-    Serial.print(cmdLeft);
-    Serial.print("\t");
-    Serial.print(errorRight);
-    Serial.print(" ");
-    Serial.println(cmdRight);
-    */
-    
+    // Update the encoder error
+    errorLeft = countsDesired - leftEncoderCount; 
+    errorRight = countsDesired - rightEncoderCount;
   }
+
+  // Stop the motors
   run_motor(A, 0);
   run_motor(B, 0);
 }
-////////////////////////////////////////////////////////////////////////////////
 
-
-// Write a function for turning with PID control, similar to the drive function
-
-
-//////////////////////////////////////////////////////////
-
-int proportionalControl(int gain, int deadband, int error, int motor)
-//  gain, deadband, and error, both are integer values
-{
+// Proportional control function for motor speed adjustment
+int proportionalControl(int gain, int deadband, int error, int motor) {
   int max;
-  if (error <= distTolerance) { // if error is acceptable, PWM = 0
-    return (0);
+  if (error <= distTolerance) { // If error is within tolerance, stop motor
+    return 0;
   }
-  if (motor== LEFT){
-    max = 170;
+  if (motor == LEFT) {
+    max = 170; // Maximum PWM for motor A
   }
-  else{
-    max = 120;
+  else {
+    max = 120; // Maximum PWM for motor B
   }
-  int pwm = (gain * error); // Proportional control
-  pwm = constrain(pwm,deadband,max); // Bind value between motor's min and max
-  return(pwm);
-  // Consider updating to include differential control
+  int pwm = gain * error; // Calculate proportional control
+  pwm = constrain(pwm, deadband, max); // Constrain PWM between deadband and max
+  return pwm;
 }
 
-//////////////////////////////////////////////////////////
+// Function to turn the robot by a specified angle (using encoder counts)
 unsigned long Turn(int sign) {
-  int leftCount = 11;
+  int leftCount = 11; // Placeholder encoder counts for turns
   int rightCount = 11;
   int errorLeft = 2;
   int errorRight = 2;
   int Gainleft, Gainright;
 
-  // reset current encoder counts
+  // Reset current encoder counts
   leftEncoderCount = 0;
   rightEncoderCount = 0;
 
-  if(sign==LEFT){
-    while (errorLeft > distTolerance && errorRight > distTolerance){
-      if(errorLeft>distTolerance){
+  // If turning left
+  if (sign == LEFT) {
+    while (errorLeft > distTolerance && errorRight > distTolerance) {
+      if (errorLeft > distTolerance) {
         errorLeft = leftCount - leftEncoderCount;
-        Gainleft = proportionalControl(turnGainA, deadband_A, errorLeft, LEFT);
-      }else{
-        Gainleft = 0;
+        Gainleft = proportionalControl(turnGainA, deadband_A, errorLeft, LEFT); // Control motor A for left turn
       }
-      if(errorRight>distTolerance){
+      if (errorRight > distTolerance) {
         errorRight = rightCount - rightEncoderCount;
-        Gainright = proportionalControl(turnGainB, deadband_B, errorRight, RIGHT);
-      }else{
-        Gainright = 0;
+        Gainright = proportionalControl(turnGainB, deadband_B, errorRight, RIGHT); // Control motor B for left turn
       }
-      
 
-      
-      
-
-      run_motor(A, -Gainleft); //change PWM to your calibrations
-      run_motor(B, Gainright); //change PWM to your calibrations
-      
+      // Apply the calculated PWM values for turning
+      run_motor(A, -Gainleft); // Reverse motor A for left turn
+      run_motor(B, Gainright); // Forward motor B for left turn
     }
-    run_motor(A, 0); //CHECK IF WE CAN REMOVE STOP
-    run_motor(B, 0);
-  }else if(sign == RIGHT){
-    while ( errorRight > 1 && errorLeft > 1){
-      if(errorRight > 1){
-        errorRight = rightCount - rightEncoderCount;
-        Gainright = proportionalControl(turnGainB, deadband_B, errorRight, RIGHT);
-      }else{
-        Gainright = 0;
-      }
-      if(errorLeft > 1){
-        errorLeft = leftCount - leftEncoderCount;
-        Gainleft = proportionalControl(turnGainA, deadband_A, errorLeft, LEFT);
-      }else{
-        Gainleft = 0;
-      }
-      run_motor(A, Gainleft); //change PWM to your calibrations
-      run_motor(B, -Gainright); //change PWM to your calibrations
-      
-    }
-    run_motor(A, 0); //CHECK IF WE CAN REMOVE STOP
+    run_motor(A, 0); // Stop motors after turn
     run_motor(B, 0);
   }
-  // The run motor command takes in a PWM value from -255 (full reverse) to 255 (full forward)
-  /* TODO
-   * Using the Forward function as a guide,
-   * Write commands in this Turn function to power the
-   * motors in opposite directions for the calculated time
-   * and then shut off
-   */
+  // If turning right
+  else if (sign == RIGHT) {
+    while (errorRight > distTolerance && errorLeft > distTolerance) {
+      if (errorRight > distTolerance) {
+        errorRight = rightCount - rightEncoderCount;
+        Gainright = proportionalControl(turnGainB, deadband_B, errorRight, RIGHT); // Control motor B for right turn
+      }
+      if (errorLeft > distTolerance) {
+        errorLeft = leftCount - leftEncoderCount;
+        Gainleft = proportionalControl(turnGainA, deadband_A, errorLeft, LEFT); // Control motor A for right turn
+      }
+
+      // Apply the calculated PWM values for turning
+      run_motor(A, Gainleft); // Forward motor A for right turn
+      run_motor(B, -Gainright); // Reverse motor B for right turn
+    }
+    run_motor(A, 0); // Stop motors after turn
+    run_motor(B, 0);
+  }
 }
 
-//////////////////////////////////////////////////////////
-
-// These are the encoder interupt funcitons, they should NOT be edited
-
-void indexLeftEncoderCount()
-{
-  leftEncoderCount++;
+// Interrupt service routine for left encoder count (triggered on pin change)
+void indexLeftEncoderCount() {
+  leftEncoderCount++; // Increment left encoder count
 }
-//////////////////////////////////////////////////////////
-void indexRightEncoderCount()
-{
-  rightEncoderCount++;
+
+// Interrupt service routine for right encoder count (triggered on pin change)
+void indexRightEncoderCount() {
+  rightEncoderCount++; // Increment right encoder count
 }
