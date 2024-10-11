@@ -6,7 +6,7 @@ struct state {
   float v;
 };
 
-#define buttonPin 2
+#define buttonPin 11
 
 #define EncoderMotorLeft 7
 #define EncoderMotorRight 8
@@ -16,7 +16,7 @@ struct state {
 
 // If you have a kit with the moto shield, set this to true
 // If you have the Dual H-Bridge controller w/o the shield, set to false
-#define SHIELD true
+#define SHIELD false
 //SHIELD Pin varables - cannot be changed
 #define motorApwm 3
 #define motorAdir 12
@@ -33,11 +33,11 @@ volatile int rightEncoderCount = 0;
 volatile int dir = 1;
 
 // TODO: Max speed of each motor in counts/sec
-float maxSpeedA = ;
-float maxSpeedB = ;
+float maxSpeedA = 93.7;
+float maxSpeedB = 112.4;
 
 // TODO: Set a desired speed (in counts/second)
-float Vdesired = ;
+float Vdesired = 80;
 
 // TODO: Choose gains
 float Kp[] = {1.0, 1.0};
@@ -52,7 +52,7 @@ unsigned long nextPrintTime = 0;
 
 void setup() {
   // TODO: Initialize buttonPin as an INPUT_PULLUP
-
+  pinMode(buttonPin, INPUT_PULLUP);
   motor_setup();
   encoder_setup();
   Serial.begin(9600);

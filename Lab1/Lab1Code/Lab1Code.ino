@@ -6,7 +6,7 @@
 *
 */
 
-#define pushButton 2 // install a button with its output into Pin 2
+#define pushButton 11 // install a button with its output into Pin 2
 #define adc0 A0 // measure analog DC (ADC) voltage in Pin A0
 #define adc1 A1 // measure analog DC (ADC) voltage in Pin A1
 #define ledPin 13 // Builtin LED is connected to Pin 13
