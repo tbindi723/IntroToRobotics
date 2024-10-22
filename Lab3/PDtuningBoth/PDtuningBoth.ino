@@ -37,11 +37,11 @@ float maxSpeedA = 93.7;
 float maxSpeedB = 112.4;
 
 // TODO: Set a desired speed (in counts/second)
-float Vdesired = 80;
+float Vdesired = 75;
 
 // TODO: Choose gains
-float Kp[] = {1.0, 1.0};
-float Kd[] = {1.0, 1.0};
+float Kp[] = {6.0, 6.0};
+float Kd[] = {0.3, 0.3};
 
 
 int PDdelay = 20;
