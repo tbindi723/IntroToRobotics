@@ -24,6 +24,10 @@
 #define IN2 10
 #define IN3 5
 #define IN4 6
+
+#define FORWARD             0
+#define LEFT               -75
+#define RIGHT               85
 ///////////////////////////////////////////////////////////////
 // Two structures for use in this lab.
 // The velocity profile structure contains the important time steps and 
@@ -44,21 +48,21 @@ struct state {
 
 ///////////////////////////////////////////////////////////////
 // TODO: Input gains for each motor from motor testing code below
-float Kp[] = {6.0, 4.5};
-float Kd[] = {0.3, 0.3};
+float Kp[] = {5.0, 4.75};
+float Kd[] = {1, 1};
 
 // TODO: Max speed of each motor in counts/sec
 float maxSpeedA = 93.7;
 float maxSpeedB = 112.4;
 
 float cntCm = 0.955;
-float DistancePerRev = 25.132;
+float DistancePerRev = 28;
 float EncoderCountsPerRev = 24;
-float l = 11.75;
+float l = 9;
 float cmDegree = (2*3.14*l)/360;
 
 // TODO: Choose a reasonable speed for your robot to drive
-float desiredMaxSpeed = 50; // Input desired speed in cm/s, convert later
+float desiredMaxSpeed = 45; // Input desired speed in cm/s, convert later
 int desiredDistance = 60; // Input desired test distance in cm
 
 volatile unsigned int leftEncoderCount = 0;
@@ -70,6 +74,10 @@ int printDelay = 200;
 unsigned long nextPrintTime = printDelay;
 float rampFraction = 0.3;
 
+// Define the movement sequence (forward, left, right, etc.) for navigating a maze
+int moves[] = {FORWARD, LEFT, FORWARD, LEFT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD, RIGHT, FORWARD}; 
+// Define the distance to travel for each move
+int distance[] = {30, 16, 16, 80, 45, 20};
 
 
 void setup() {
@@ -81,9 +89,26 @@ void setup() {
 }
 
 void loop() {
-  while (digitalRead(buttonPin) == true); // Halts program by iterating digitalRead until button is pressed
-  driveForward(desiredMaxSpeed, desiredDistance); // Drives forward (see below)
-  turn(7, 90);
+ int j = 0;
+
+  // Wait for the push button to be pressed and released
+  while (digitalRead(buttonPin) == 1); // Wait for button press
+  delay(50); // Debounce delay
+  while (digitalRead(buttonPin) == 0); // Wait for button release
+  for (int i = 0; i < sizeof(moves)/2; i++) { 
+    if(moves[i] == FORWARD){
+      driveForward(desiredMaxSpeed, distance[j]); // Drive forward for the specified distance
+      j++;
+    }
+    else {
+      turn(15, moves[i]); // Turn in the specified direction (left or right)
+    }
+    // Stop the motors after each move
+    run_motor(A, 0);
+    run_motor(B, 0);
+  }
+  j = 0; // Reset the distance index
+
 }
 
 void driveForward(float desiredSpeed, float desiredDistance) {
@@ -91,8 +116,12 @@ void driveForward(float desiredSpeed, float desiredDistance) {
   float motorSpeed = (desiredSpeed/DistancePerRev)*EncoderCountsPerRev; // Convert from cm/s to counts/s
   float countsDesired = (desiredDistance / DistancePerRev) * EncoderCountsPerRev; // Can use Lab 2B equation here
 
-  float Xd, Vd, VA, VB;
-  int encA, encB;
+  float Xd = 0;
+  float Vd = 0;
+  float VA = 0;
+  float VB = 0;
+  int encA = 0;
+  int encB = 0;
 
   // Reset encoder counts at the beginning of the movement.
   unsigned long startTime = millis();
@@ -105,10 +134,10 @@ void driveForward(float desiredSpeed, float desiredDistance) {
   
   //TODO: Give this inputs (see trapezoidal.ino)
   struct velProfile profile = genVelProfile(desiredMaxSpeed, desiredDistance, rampFraction); 
-
+  nextPDtime = 0;
   // Run until final time of the velocity profile + 1 second, in order to
   // allow your motors to catch up if necessary
-  while (millis() - startTime < profile.tf*1000+1000) {
+  while (millis() - startTime < profile.tf*1000+100) {
     unsigned long now = millis() - startTime;
     run_motor(A, cmdA);
     run_motor(B, cmdB);
@@ -188,7 +217,8 @@ void turn(float maxAngularSpeed, float degrees) {
   Serial.println(desiredMaxSpeed);
   // Run until final time of the velocity profile + 1 second, in order to
   // allow your motors to catch up if necessary
-  while (millis() - startTime < profile.tf*1000+1000) {
+  nextPDtime = 0;
+  while (millis() - startTime < profile.tf*1000+100) {
     unsigned long now = millis() - startTime;
     if(degrees>0){
       run_motor(A, cmdA);
@@ -201,8 +231,6 @@ void turn(float maxAngularSpeed, float degrees) {
       struct state desiredState = targetState(now/1000.0, profile);
       Xd = desiredState.x; // Desired position
       Vd = desiredState.v; // Desired speed
-      Serial.println(Xd);
-      Serial.println(Vd);
       // Get current encoder counts
       encA = leftEncoderCount;
       encB = rightEncoderCount;
@@ -210,12 +238,12 @@ void turn(float maxAngularSpeed, float degrees) {
       VA = (encA - prevEncA) * 1000.0/PDdelay;
       VB = (encB - prevEncB) * 1000.0/PDdelay;
       // Feed-forward values of pwm for speed based on max speed
-      float pwmInA = map(Vd, 0, maxSpeedA, 60, 255); 
+      float pwmInA = map(Vd, 0, maxSpeedA, 80, 255); 
       float pwmInB = map(Vd, 0, maxSpeedB, 60, 255);
 
       // Get command values from controller (as a byte)
-      cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
-      cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
+      cmdA = pdController(pwmInA, Vd-VA, Xd-encA, 6, 0.3);
+      cmdB = pdController(pwmInB, Vd-VB, Xd-encB, 6, 0.3);
 
       // Update previous encoder counts
       prevEncA = encA;
@@ -247,8 +275,6 @@ void turn(float maxAngularSpeed, float degrees) {
   run_motor(A, 0);
   run_motor(B, 0);
   Serial.println("done turning");
-  Serial.println(encA);
-  Serial.println(encB);
 }
 
 
@@ -277,7 +303,7 @@ struct state targetState(float time, struct velProfile vp) {
 int pdController(float FF, float Verr, float Xerr, float kp, float kd) {
   // Implements Feed-forward + feedback control
   int u = FF + kp*Xerr + kd*Verr;
-  int cmd = constrain(u, 0, 255);
+  int cmd = constrain(u, -255, 255);
   return cmd;
 }
 
