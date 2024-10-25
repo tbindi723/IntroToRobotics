@@ -104,7 +104,6 @@ void setup() {
 
 
 void loop(){
-  /*
   while (digitalRead(pushButton) == 1); // wait for button push
   while (digitalRead(pushButton) == 0); // wait for button release
   explore();
@@ -118,27 +117,28 @@ void loop(){
     run_motor(A, 0);
     run_motor(B, 0);
   }
-  */
-  readLeftDist();
+
 }
 
 
 float readLeftDist() { 
   // If IR distance sensor
-  int reading = analogRead(LeftIR);
-  //float dist = // Equation from your calibration;
+  float reading = analogRead(LeftIR);
+  float voltage = (reading/1028)*5;
+  float dist = 1/(0.038*voltage + 0.00005) - 0.24;// Equation from your calibration;
 
   // if Ultrasonic
   // float dist = frontUS.dist(); //(returns in cm)
-  Serial.println(reading);
-  //return dist;
+
+  return dist;
 }
 
 
-float readFrontDist() {
+float readRightDist() {
   // If IR distance sensor
-  int reading = analogRead(RightIR);
-  float dist = 0 ;// Equation from your calibration;
+  float reading = analogRead(RightIR);
+  float voltage = (reading/1028)*5;
+  float dist = 1/(0.07*voltage + 0.0045) - 0.24 ;// Equation from your calibration;
 
   // IF Ultrasonic
   // float dist = sideUS.dist(); //(returns in cm)
@@ -147,7 +147,6 @@ float readFrontDist() {
 }
 
 
-/*
 void explore() {
   while (digitalRead(pushButton) == 1) { //while maze is not solved
     // Read distances
@@ -397,4 +396,4 @@ int pdController(float FF, float Verr, float Xerr, float kp, float kd) {
   int cmd = constrain(u, -255, 255);
   return cmd;
 }
-*/
+
