@@ -3,11 +3,8 @@
 */
 
 #include <PinChangeInterrupt.h>
-#include <HCSR04.h> // If using any Ultrasonic Distance Sensors, 
+//#include <HCSR04.h> // If using any Ultrasonic Distance Sensors, 
 // This code assumes the HC-SR04 Library by gamegine, but many work
-
-
-
 
 // TODO: Copy constants and definitions from Lab 3
 #define buttonPin 11
@@ -37,17 +34,16 @@
 #define RIGHT               85
 
 
-
 // Define IR Distance sensor Pins
-#define frontIR A0
-#define sideIR  A1
+#define LeftIR A0
+#define RightIR  A1
 
 // If using any Ultrasonic - change pins for your needs
 #define trig 4
 #define echo 5
 
 // if side sensor is Ultrasonic
-HCSR04 sideUS(trig, echo);
+//HCSR04 sideUS(trig, echo);
 // if front sensor is Ultrasonic
 //HCSR04 frontUS(trig, echo);
 
@@ -107,11 +103,8 @@ void setup() {
 }
 
 
-
-
-void loop()
-{
-
+void loop(){
+  /*
   while (digitalRead(pushButton) == 1); // wait for button push
   while (digitalRead(pushButton) == 0); // wait for button release
   explore();
@@ -125,34 +118,36 @@ void loop()
     run_motor(A, 0);
     run_motor(B, 0);
   }
+  */
+  readLeftDist();
 }
 
 
-float readFrontDist() { 
+float readLeftDist() { 
   // If IR distance sensor
-  int reading = analogRead(frontIR);
-  float dist = // Equation from your calibration;
+  int reading = analogRead(LeftIR);
+  //float dist = // Equation from your calibration;
 
   // if Ultrasonic
   // float dist = frontUS.dist(); //(returns in cm)
-
-  return dist;
+  Serial.println(reading);
+  //return dist;
 }
 
 
-float readSideDist() {
+float readFrontDist() {
   // If IR distance sensor
-  int reading = analogRead(sideIR);
-  float dist = // Equation from your calibration;
+  int reading = analogRead(RightIR);
+  float dist = 0 ;// Equation from your calibration;
 
   // IF Ultrasonic
   // float dist = sideUS.dist(); //(returns in cm)
-  
+
   return dist;
 }
 
 
-
+/*
 void explore() {
   while (digitalRead(pushButton) == 1) { //while maze is not solved
     // Read distances
@@ -229,7 +224,6 @@ void driveForward(float desiredSpeed, float desiredDistance) {
   int prevEncA = 0;
   int prevEncB = 0;
   
-  //TODO: Give this inputs (see trapezoidal.ino)
   struct velProfile profile = genVelProfile(desiredMaxSpeed, desiredDistance, rampFraction); 
   nextPDtime = 0;
   // Run until final time of the velocity profile + 1 second, in order to
@@ -403,4 +397,4 @@ int pdController(float FF, float Verr, float Xerr, float kp, float kd) {
   int cmd = constrain(u, -255, 255);
   return cmd;
 }
-
+*/
