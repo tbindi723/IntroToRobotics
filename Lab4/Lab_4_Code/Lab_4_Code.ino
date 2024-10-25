@@ -3,7 +3,7 @@
 */
 
 #include <PinChangeInterrupt.h>
-//#include <HCSR04.h> // If using any Ultrasonic Distance Sensors, 
+#include <HCSR04.h> // If using any Ultrasonic Distance Sensors, 
 // This code assumes the HC-SR04 Library by gamegine, but many work
 
 // TODO: Copy constants and definitions from Lab 3
@@ -40,12 +40,12 @@
 
 // If using any Ultrasonic - change pins for your needs
 #define trig 4
-#define echo 5
+#define echo 3
 
 // if side sensor is Ultrasonic
 //HCSR04 sideUS(trig, echo);
 // if front sensor is Ultrasonic
-//HCSR04 frontUS(trig, echo);
+HCSR04 frontUS(trig, echo);
 
 // Define the distance tolerance that indicates a wall is present
 #define wallTol 3 //cm
@@ -146,6 +146,12 @@ float readRightDist() {
   return dist;
 }
 
+float readFrontDist() {
+  // IF Ultrasonic
+  float dist = frontUS.dist(); //(returns in cm)
+
+  return dist;
+}
 
 void explore() {
   while (digitalRead(pushButton) == 1) { //while maze is not solved
@@ -396,4 +402,4 @@ int pdController(float FF, float Verr, float Xerr, float kp, float kd) {
   int cmd = constrain(u, -255, 255);
   return cmd;
 }
-
+*/
