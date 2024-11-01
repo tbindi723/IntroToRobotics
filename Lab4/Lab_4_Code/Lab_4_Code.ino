@@ -33,6 +33,8 @@
 #define LEFT               -75
 #define RIGHT               85
 
+#define pushButton 11
+
 
 // Define IR Distance sensor Pins
 #define LeftIR A0
@@ -51,6 +53,9 @@ HCSR04 frontUS(trig, echo);
 #define wallTol 3 //cm
 
 int moves[50]; // Empty array of 50 moves, probably more than needed, just in case
+
+int maze[50];
+int distance[50];
 
 ///////////////////////////////////////////////////////////////
 // Two structures for use in this lab.
@@ -97,6 +102,7 @@ float rampFraction = 0.3;
 
 void setup() {
   //TODO: Include setup code for any pins other than motors or encoders
+  pinMode(pushButton, INPUT_PULLUP);
   Serial.begin(9600);
   motor_setup();
   encoder_setup();
@@ -105,13 +111,15 @@ void setup() {
 
 void loop(){
   while (digitalRead(pushButton) == 1); // wait for button push
+  delay(50); // debounce input
   while (digitalRead(pushButton) == 0); // wait for button release
   explore();
   run_motor(A, 0);
   run_motor(B, 0);
   solve();
-  while True { //Inifnite number of runs, so you don't have to re-explore everytime a mistake happens
+  while(true) { //Inifnite number of runs, so you don't have to re-explore everytime a mistake happens
     while (digitalRead(pushButton) == 1); // wait for button push
+    delay(50); // debounce input
     while (digitalRead(pushButton) == 0); // wait for button release
     runMaze();
     run_motor(A, 0);
@@ -156,9 +164,10 @@ float readFrontDist() {
 void explore() {
   while (digitalRead(pushButton) == 1) { //while maze is not solved
     // Read distances
-    float side = readSideDist();
+    float rightSide = readRightDist();
+    float leftSide = readLeftDist();
     float front = readFrontDist();
-    if (side > wallTol) {// If side is not a wall
+    if (rightSide > wallTol||leftSide>wallTol) {// If side is not a wall
       // turn and drive forward
       // Record actions
     }
@@ -181,7 +190,6 @@ void solve() {
 
 void runMaze() {
    int j = 0;
-
   // Wait for the push button to be pressed and released
   while (digitalRead(buttonPin) == 1); // Wait for button press
   delay(50); // Debounce delay
@@ -402,4 +410,4 @@ int pdController(float FF, float Verr, float Xerr, float kp, float kd) {
   int cmd = constrain(u, -255, 255);
   return cmd;
 }
-*/
+
