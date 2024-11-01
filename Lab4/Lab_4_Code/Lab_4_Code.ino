@@ -204,8 +204,6 @@ void explore() {
       currentState = SLOW;
       Serial.println("Time to stop!");
       driveForward(3);
-      run_motor(A, 0);
-      run_motor(B, 0);
       while(true);
       currentState = STOPPED;
     }
@@ -260,106 +258,124 @@ void runMaze() {
 // (Any ino files in a folder are automatically imported to the one that shares
 // a name with the folder title)
 
-void driveForward(uint8_t state) {
+void driveForward(int forwardState) {
 
   // Run until final time of the velocity profile + 1 second, in order to
   // allow your motors to catch up if necessary
-  switch (state)
+  if (forwardState == 1)
   {
-    case 1: // Accelerate - follow the trapiziodal profile generated at the beginning
-      float Xd = 0;
-      float Vd = 0;
-      float VA = 0;
-      float VB = 0;
-      int encA = 0;
-      int encB = 0;
+    // Accelerate - follow the trapiziodal profile generated at the beginning
+    float Xd = 0;
+    float Vd = 0;
+    float VA = 0;
+    float VB = 0;
+    int encA = 0;
+    int encB = 0;
 
-      // Reset encoder counts at the beginning of the movement.
-      unsigned long startTime = millis();
-      int cmdA = 0;
-      int cmdB = 0;
-      leftEncoderCount = 0;
-      rightEncoderCount = 0;
-      int prevEncA = 0;
-      int prevEncB = 0;
-      
-      nextPDtime = 0;
-      while(millis() - startTime < profile.t1*1000){
-        unsigned long now = millis() - startTime;
-        run_motor(A, cmdA);
-        run_motor(B, cmdB);
-        if (now > nextPDtime) {
-          struct state desiredState = targetState(now/1000.0, profile);
-          Xd = desiredState.x; // Desired position
-          Vd = desiredState.v; // Desired speed
-          // Get current encoder counts
-          encA = leftEncoderCount;
-          encB = rightEncoderCount;
-          // Get current speed (the 1000 converts PDdelay to seconds)
-          VA = (encA - prevEncA) * 1000.0/PDdelay;
-          VB = (encB - prevEncB) * 1000.0/PDdelay;
-          // Feed-forward values of pwm for speed based on max speed
-          float pwmInA = map(Vd, 0, maxSpeedA, 0, 255); 
-          float pwmInB = map(Vd, 0, maxSpeedB, 0, 255);
+    // Reset encoder counts at the beginning of the movement.
+    unsigned long startTime = millis();
+    int cmdA = 0;
+    int cmdB = 0;
+    leftEncoderCount = 0;
+    rightEncoderCount = 0;
+    int prevEncA = 0;
+    int prevEncB = 0;
+    
+    nextPDtime = 0;
+    while(millis() - startTime < profile.t1*1000){
+      unsigned long now = millis() - startTime;
+      run_motor(A, cmdA);
+      run_motor(B, cmdB);
+      if (now > nextPDtime) {
+        struct state desiredState = targetState(now/1000.0, profile);
+        Xd = desiredState.x; // Desired position
+        Vd = desiredState.v; // Desired speed
+        // Get current encoder counts
+        encA = leftEncoderCount;
+        encB = rightEncoderCount;
+        // Get current speed (the 1000 converts PDdelay to seconds)
+        VA = (encA - prevEncA) * 1000.0/PDdelay;
+        VB = (encB - prevEncB) * 1000.0/PDdelay;
+        // Feed-forward values of pwm for speed based on max speed
+        float pwmInA = map(Vd, 0, maxSpeedA, 0, 255); 
+        float pwmInB = map(Vd, 0, maxSpeedB, 0, 255);
 
-          // Get command values from controller (as a byte)
-          cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
-          cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
+        // Get command values from controller (as a byte)
+        cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
+        cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
 
-          // Update previous encoder counts
-          prevEncA = encA;
-          prevEncB = encB;
+        // Update previous encoder counts
+        prevEncA = encA;
+        prevEncB = encB;
 
-          // Set next time to update PD controller
-          nextPDtime += PDdelay;
-        }
+        // Set next time to update PD controller
+        nextPDtime += PDdelay;
       }
-      break;
-    case 2: // Run - run at max speed till told to do otherwise
-      Serial.println("Driving");
-      break;
-    case 3: // Decelerate - slow down to a stop
-      Serial.println("Beginning slowdown");
-      unsigned long offset;
-      // Reset encoder counts at the beginning of the movement.
-      startTime = millis()+profile.t2;
-      leftEncoderCount = 0;
-      rightEncoderCount = 0;
-      prevEncA = 0;
-      prevEncB = 0;
-      
-      nextPDtime = 0;
-      while(millis() - startTime < profile.tf*1000){
-        unsigned long now = millis() - startTime;
-        run_motor(A, cmdA);
-        run_motor(B, cmdB);
-        if (now > nextPDtime) {
-          struct state desiredState = targetState(now/1000.0, profile);
-          Xd = desiredState.x; // Desired position
-          Vd = desiredState.v; // Desired speed
-          // Get current encoder counts
-          encA = leftEncoderCount;
-          encB = rightEncoderCount;
-          // Get current speed (the 1000 converts PDdelay to seconds)
-          VA = (encA - prevEncA) * 1000.0/PDdelay;
-          VB = (encB - prevEncB) * 1000.0/PDdelay;
-          // Feed-forward values of pwm for speed based on max speed
-          float pwmInA = map(Vd, 0, maxSpeedA, 0, 255); 
-          float pwmInB = map(Vd, 0, maxSpeedB, 0, 255);
+    }
+  }
+  else if(forwardState == 2){
+    // Run - run at max speed till told to do otherwise
+    Serial.println("Driving");
+  } 
+  else if(forwardState == 3){
+    // Decelerate - slow down to a stop
+    float Xd = 0;
+    float Vd = 0;
+    float VA = 0;
+    float VB = 0;
+    int encA = 0;
+    int encB = 0;
 
-          // Get command values from controller (as a byte)
-          cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
-          cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
+    // Reset encoder counts at the beginning of the movement.
+    unsigned long startTime = millis();
+    int cmdA = 0;
+    int cmdB = 0;
+    leftEncoderCount = 0;
+    rightEncoderCount = 0;
+    int prevEncA = 0;
+    int prevEncB = 0;
+    
+    nextPDtime = 0;
+    Serial.println("Beginning slowdown");
+    unsigned long offset = millis() - profile.t2*1000;
+    // Reset encoder counts at the beginning of the movement.
+    startTime = millis();
+    leftEncoderCount = 0;
+    rightEncoderCount = 0;
+    prevEncA = 0;
+    prevEncB = 0;
+    
+    nextPDtime = 0;
+    while(millis() - startTime < profile.tf*1000+offset){
+      unsigned long now = millis() - startTime;
+      run_motor(A, cmdA);
+      run_motor(B, cmdB);
+      if (now > nextPDtime) {
+        struct state desiredState = targetState(now/1000.0, profile);
+        Xd = desiredState.x; // Desired position
+        Vd = desiredState.v; // Desired speed
+        // Get current encoder counts
+        encA = leftEncoderCount;
+        encB = rightEncoderCount;
+        // Get current speed (the 1000 converts PDdelay to seconds)
+        VA = (encA - prevEncA) * 1000.0/PDdelay;
+        VB = (encB - prevEncB) * 1000.0/PDdelay;
+        // Feed-forward values of pwm for speed based on max speed
+        float pwmInA = map(Vd, 0, maxSpeedA, 0, 255); 
+        float pwmInB = map(Vd, 0, maxSpeedB, 0, 255);
 
-          // Update previous encoder counts
-          prevEncA = encA;
-          prevEncB = encB;
+        // Get command values from controller (as a byte)
+        cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
+        cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
 
-          // Set next time to update PD controller
-          nextPDtime += PDdelay;
-        }
+        // Update previous encoder counts
+        prevEncA = encA;
+        prevEncB = encB;
+
+        // Set next time to update PD controller
+        nextPDtime += PDdelay;
       }
-      break;
+    }
   }
 }
 
