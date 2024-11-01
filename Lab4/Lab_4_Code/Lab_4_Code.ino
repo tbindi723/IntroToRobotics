@@ -35,6 +35,10 @@
 
 #define pushButton 11
 
+#define STOPPED 0
+#define SPEED 1
+#define RUN 2
+#define SLOW 3
 
 // Define IR Distance sensor Pins
 #define LeftIR A0
@@ -50,8 +54,21 @@
 HCSR04 frontUS(trig, echo);
 
 // Define the distance tolerance that indicates a wall is present
-#define wallTol 3 //cm
+#define wallTol 10 //cm
 
+// Define the distance tolerance on the front that might cause a crash
+#define crashTol 6 //cm
+
+uint8_t currentState = 0;
+
+// Define a score look up table to help determine move directions
+uint8_t idealScores[5][5] {
+    {1, 1, 1, 1, 1},
+    {1, 2, 2, 2, 2},
+    {1, 2, 3, 3, 3},
+    {1, 2, 3, 4, 4},
+    {1, 2, 3, 4, 5}
+  };
 int moves[50]; // Empty array of 50 moves, probably more than needed, just in case
 
 int maze[50];
@@ -99,6 +116,7 @@ unsigned long nextPDtime = 0;
 int printDelay = 200;
 unsigned long nextPrintTime = printDelay;
 float rampFraction = 0.3;
+struct velProfile profile;
 
 void setup() {
   //TODO: Include setup code for any pins other than motors or encoders
@@ -106,6 +124,7 @@ void setup() {
   Serial.begin(9600);
   motor_setup();
   encoder_setup();
+  profile = genVelProfile(desiredMaxSpeed, desiredDistance, rampFraction);
 }
 
 
@@ -113,8 +132,9 @@ void loop(){
   while (digitalRead(pushButton) == 1); // wait for button push
   delay(50); // debounce input
   while (digitalRead(pushButton) == 0); // wait for button release
+  delay(50); // debounce input
   explore();
-  run_motor(A, 0);
+  /*run_motor(A, 0);
   run_motor(B, 0);
   solve();
   while(true) { //Inifnite number of runs, so you don't have to re-explore everytime a mistake happens
@@ -125,7 +145,7 @@ void loop(){
     run_motor(A, 0);
     run_motor(B, 0);
   }
-
+ */
 }
 
 
@@ -167,6 +187,30 @@ void explore() {
     float rightSide = readRightDist();
     float leftSide = readLeftDist();
     float front = readFrontDist();
+    uint8_t desiredDirection;
+    // If we are at a standstill and want to go forward
+    if(currentState == STOPPED&&desiredDirection == FORWARD)
+    {
+      driveForward(1); // Run acceleration profile
+      currentState = RUN;
+      Serial.println("Done Accelerating");
+    } // If we are accelerated and can only go forwards
+    else if(currentState == RUN && rightSide < wallTol && leftSide < wallTol && front > crashTol)
+    {
+      driveForward(2); // Continue to drive forwards
+    }
+    else
+    {
+      currentState = SLOW;
+      Serial.println("Time to stop!");
+      driveForward(3);
+      run_motor(A, 0);
+      run_motor(B, 0);
+      while(true);
+      currentState = STOPPED;
+    }
+
+
     if (rightSide > wallTol||leftSide>wallTol) {// If side is not a wall
       // turn and drive forward
       // Record actions
@@ -196,7 +240,7 @@ void runMaze() {
   while (digitalRead(buttonPin) == 0); // Wait for button release
   for (int i = 0; i < sizeof(maze)/2; i++) { 
     if(moves[i] == FORWARD){
-      driveForward(desiredMaxSpeed, distance[j]); // Drive forward for the specified distance
+      //driveForward(desiredMaxSpeed, distance[j]); // Drive forward for the specified distance
       j++;
     }
     else {
@@ -216,83 +260,107 @@ void runMaze() {
 // (Any ino files in a folder are automatically imported to the one that shares
 // a name with the folder title)
 
-void driveForward(float desiredSpeed, float desiredDistance) {
-  // TODO: Convert desiredSpeed to motorSpeed and countsDesired
-  float motorSpeed = (desiredSpeed/DistancePerRev)*EncoderCountsPerRev; // Convert from cm/s to counts/s
-  float countsDesired = (desiredDistance / DistancePerRev) * EncoderCountsPerRev; // Can use Lab 2B equation here
+void driveForward(uint8_t state) {
 
-  float Xd = 0;
-  float Vd = 0;
-  float VA = 0;
-  float VB = 0;
-  int encA = 0;
-  int encB = 0;
-
-  // Reset encoder counts at the beginning of the movement.
-  unsigned long startTime = millis();
-  int cmdA = 0;
-  int cmdB = 0;
-  leftEncoderCount = 0;
-  rightEncoderCount = 0;
-  int prevEncA = 0;
-  int prevEncB = 0;
-  
-  struct velProfile profile = genVelProfile(desiredMaxSpeed, desiredDistance, rampFraction); 
-  nextPDtime = 0;
   // Run until final time of the velocity profile + 1 second, in order to
   // allow your motors to catch up if necessary
-  while (millis() - startTime < profile.tf*1000+100) {
-    unsigned long now = millis() - startTime;
-    run_motor(A, cmdA);
-    run_motor(B, cmdB);
-    if (now > nextPDtime) {
-      struct state desiredState = targetState(now/1000.0, profile);
-      Xd = desiredState.x; // Desired position
-      Vd = desiredState.v; // Desired speed
-      // Get current encoder counts
-      encA = leftEncoderCount;
-      encB = rightEncoderCount;
-      // Get current speed (the 1000 converts PDdelay to seconds)
-      VA = (encA - prevEncA) * 1000.0/PDdelay;
-      VB = (encB - prevEncB) * 1000.0/PDdelay;
-      // Feed-forward values of pwm for speed based on max speed
-      float pwmInA = map(Vd, 0, maxSpeedA, 0, 255); 
-      float pwmInB = map(Vd, 0, maxSpeedB, 0, 255);
+  switch (state)
+  {
+    case 1: // Accelerate - follow the trapiziodal profile generated at the beginning
+      float Xd = 0;
+      float Vd = 0;
+      float VA = 0;
+      float VB = 0;
+      int encA = 0;
+      int encB = 0;
 
-      // Get command values from controller (as a byte)
-      cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
-      cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
+      // Reset encoder counts at the beginning of the movement.
+      unsigned long startTime = millis();
+      int cmdA = 0;
+      int cmdB = 0;
+      leftEncoderCount = 0;
+      rightEncoderCount = 0;
+      int prevEncA = 0;
+      int prevEncB = 0;
+      
+      nextPDtime = 0;
+      while(millis() - startTime < profile.t1*1000){
+        unsigned long now = millis() - startTime;
+        run_motor(A, cmdA);
+        run_motor(B, cmdB);
+        if (now > nextPDtime) {
+          struct state desiredState = targetState(now/1000.0, profile);
+          Xd = desiredState.x; // Desired position
+          Vd = desiredState.v; // Desired speed
+          // Get current encoder counts
+          encA = leftEncoderCount;
+          encB = rightEncoderCount;
+          // Get current speed (the 1000 converts PDdelay to seconds)
+          VA = (encA - prevEncA) * 1000.0/PDdelay;
+          VB = (encB - prevEncB) * 1000.0/PDdelay;
+          // Feed-forward values of pwm for speed based on max speed
+          float pwmInA = map(Vd, 0, maxSpeedA, 0, 255); 
+          float pwmInB = map(Vd, 0, maxSpeedB, 0, 255);
 
-      // Update previous encoder counts
-      prevEncA = encA;
-      prevEncB = encB;
+          // Get command values from controller (as a byte)
+          cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
+          cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
 
-      // Set next time to update PD controller
-      nextPDtime += PDdelay;
-    }
+          // Update previous encoder counts
+          prevEncA = encA;
+          prevEncB = encB;
 
-    if (now > nextPrintTime) {
-      // Output: time, error, velocity error, and pwm for both motors
-      Serial.println(now);
-      Serial.print("Motor A: ");
-      Serial.print(Xd - encA);
-      Serial.print("\t");
-      Serial.print(Vd - VA);
-      Serial.print("\t");
-      Serial.println(cmdA);
-      Serial.print("Motor B: ");
-      Serial.print(Xd - encB);
-      Serial.print("\t");
-      Serial.print(Vd - VB);
-      Serial.print("\t");
-      Serial.println(cmdB);
-      nextPrintTime += printDelay;
-    }
+          // Set next time to update PD controller
+          nextPDtime += PDdelay;
+        }
+      }
+      break;
+    case 2: // Run - run at max speed till told to do otherwise
+      Serial.println("Driving");
+      break;
+    case 3: // Decelerate - slow down to a stop
+      Serial.println("Beginning slowdown");
+      unsigned long offset;
+      // Reset encoder counts at the beginning of the movement.
+      startTime = millis()+profile.t2;
+      leftEncoderCount = 0;
+      rightEncoderCount = 0;
+      prevEncA = 0;
+      prevEncB = 0;
+      
+      nextPDtime = 0;
+      while(millis() - startTime < profile.tf*1000){
+        unsigned long now = millis() - startTime;
+        run_motor(A, cmdA);
+        run_motor(B, cmdB);
+        if (now > nextPDtime) {
+          struct state desiredState = targetState(now/1000.0, profile);
+          Xd = desiredState.x; // Desired position
+          Vd = desiredState.v; // Desired speed
+          // Get current encoder counts
+          encA = leftEncoderCount;
+          encB = rightEncoderCount;
+          // Get current speed (the 1000 converts PDdelay to seconds)
+          VA = (encA - prevEncA) * 1000.0/PDdelay;
+          VB = (encB - prevEncB) * 1000.0/PDdelay;
+          // Feed-forward values of pwm for speed based on max speed
+          float pwmInA = map(Vd, 0, maxSpeedA, 0, 255); 
+          float pwmInB = map(Vd, 0, maxSpeedB, 0, 255);
+
+          // Get command values from controller (as a byte)
+          cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
+          cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
+
+          // Update previous encoder counts
+          prevEncA = encA;
+          prevEncB = encB;
+
+          // Set next time to update PD controller
+          nextPDtime += PDdelay;
+        }
+      }
+      break;
   }
-  // Stop motors
-  run_motor(A, 0);
-  run_motor(B, 0);
-  Serial.println("done driving");
 }
 
 void turn(float maxAngularSpeed, float degrees) {
