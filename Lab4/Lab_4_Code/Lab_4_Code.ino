@@ -41,7 +41,7 @@
 #define SLOW 3
 
 // Define IR Distance sensor Pins
-#define LeftIR A0
+#define LeftIR A2
 #define RightIR  A1
 
 // If using any Ultrasonic - change pins for your needs
@@ -54,7 +54,7 @@
 HCSR04 frontUS(trig, echo);
 
 // Define the distance tolerance that indicates a wall is present
-#define wallTol 10 //cm
+#define wallTol 30 //cm
 
 // Define the distance tolerance on the front that might cause a crash
 #define crashTol 6 //cm
@@ -129,10 +129,20 @@ void setup() {
 
 
 void loop(){
-  while (digitalRead(pushButton) == 1); // wait for button push
+  while (digitalRead(pushButton) == 1){
+    
+    Serial.print(readLeftDist());
+    Serial.print("\t");
+    Serial.print(readRightDist());
+    Serial.print("\t");
+    Serial.println(readFrontDist());
+    
+  }; // wait for button push
   delay(50); // debounce input
   while (digitalRead(pushButton) == 0); // wait for button release
   delay(50); // debounce input
+
+
   explore();
   /*run_motor(A, 0);
   run_motor(B, 0);
@@ -152,9 +162,8 @@ void loop(){
 float readLeftDist() { 
   // If IR distance sensor
   float reading = analogRead(LeftIR);
-  float voltage = (reading/1028)*5;
+  float voltage = (reading/1024)*5;
   float dist = 1/(0.038*voltage + 0.00005) - 0.24;// Equation from your calibration;
-
   // if Ultrasonic
   // float dist = frontUS.dist(); //(returns in cm)
 
@@ -165,9 +174,8 @@ float readLeftDist() {
 float readRightDist() {
   // If IR distance sensor
   float reading = analogRead(RightIR);
-  float voltage = (reading/1028)*5;
+  float voltage = (reading/1024)*5;
   float dist = 1/(0.07*voltage + 0.0045) - 0.24 ;// Equation from your calibration;
-
   // IF Ultrasonic
   // float dist = sideUS.dist(); //(returns in cm)
 
@@ -202,6 +210,11 @@ void explore() {
     else
     {
       currentState = SLOW;
+      Serial.print(rightSide);
+      Serial.print("\t");
+      Serial.print(leftSide);
+      Serial.print("\t");
+      Serial.println(front);
       Serial.println("Time to stop!");
       driveForward(3);
       while(true);
@@ -259,23 +272,21 @@ void runMaze() {
 // a name with the folder title)
 
 void driveForward(int forwardState) {
-
+// Accelerate - follow the trapiziodal profile generated at the beginning
+  static float Xd = 0;
+  static float Vd = 0;
+  static float VA = 0;
+  static float VB = 0;
+  static int encA = 0;
+  static int encB = 0;
+  static unsigned long startTime = millis();
+  static int cmdA = 0;
+  static int cmdB = 0;
   // Run until final time of the velocity profile + 1 second, in order to
   // allow your motors to catch up if necessary
   if (forwardState == 1)
   {
-    // Accelerate - follow the trapiziodal profile generated at the beginning
-    float Xd = 0;
-    float Vd = 0;
-    float VA = 0;
-    float VB = 0;
-    int encA = 0;
-    int encB = 0;
-
-    // Reset encoder counts at the beginning of the movement.
-    unsigned long startTime = millis();
-    int cmdA = 0;
-    int cmdB = 0;
+    
     leftEncoderCount = 0;
     rightEncoderCount = 0;
     int prevEncA = 0;
@@ -315,10 +326,27 @@ void driveForward(int forwardState) {
   }
   else if(forwardState == 2){
     // Run - run at max speed till told to do otherwise
+    float leftDist = readLeftDist();
+    float rightDist = readRightDist();
+    float frontDist = readFrontDist();
+
+
     Serial.println("Driving");
+    Serial.print(leftDist);
+    Serial.print("\t");
+    Serial.print(rightDist);
+    Serial.print("\t");
+    Serial.println(frontDist);
+    float L = 4;
+    float wallError = leftDist-rightDist;
+    run_motor(A, cmdA-(int)(wallError*L));
+    Serial.println((int)(wallError*L));
+    
   } 
   else if(forwardState == 3){
     // Decelerate - slow down to a stop
+
+    /*
     float Xd = 0;
     float Vd = 0;
     float VA = 0;
@@ -334,20 +362,24 @@ void driveForward(int forwardState) {
     rightEncoderCount = 0;
     int prevEncA = 0;
     int prevEncB = 0;
+    */
     
     nextPDtime = 0;
     Serial.println("Beginning slowdown");
-    unsigned long offset = millis() - profile.t2*1000;
+    
     // Reset encoder counts at the beginning of the movement.
     startTime = millis();
-    leftEncoderCount = 0;
-    rightEncoderCount = 0;
-    prevEncA = 0;
-    prevEncB = 0;
-    
+    //leftEncoderCount = 0;
+    //rightEncoderCount = 0;
+    int prevEncA = leftEncoderCount;
+    int prevEncB = rightEncoderCount;
+    struct state offsetState = targetState(profile.t2, profile);
+    int distOffsetL = leftEncoderCount-offsetState.x;
+    int distOffsetR = rightEncoderCount-offsetState.x;
+    Serial.println(offsetState.x);
     nextPDtime = 0;
-    while(millis() - startTime < profile.tf*1000+offset){
-      unsigned long now = millis() - startTime;
+    while(millis() - startTime+profile.t2*1000 < profile.tf*1000){
+      unsigned long now = millis() - startTime+profile.t2*1000;
       run_motor(A, cmdA);
       run_motor(B, cmdB);
       if (now > nextPDtime) {
@@ -355,8 +387,8 @@ void driveForward(int forwardState) {
         Xd = desiredState.x; // Desired position
         Vd = desiredState.v; // Desired speed
         // Get current encoder counts
-        encA = leftEncoderCount;
-        encB = rightEncoderCount;
+        encA = leftEncoderCount-distOffsetL;
+        encB = rightEncoderCount-distOffsetR;
         // Get current speed (the 1000 converts PDdelay to seconds)
         VA = (encA - prevEncA) * 1000.0/PDdelay;
         VB = (encB - prevEncB) * 1000.0/PDdelay;
@@ -376,6 +408,8 @@ void driveForward(int forwardState) {
         nextPDtime += PDdelay;
       }
     }
+    run_motor(A, 0);
+    run_motor(B, 0);
   }
 }
 
@@ -400,9 +434,6 @@ void turn(float maxAngularSpeed, float degrees) {
   
   //TODO: Give this inputs (see trapezoidal.ino)
   struct velProfile profile = genVelProfile(maxAngularSpeed, wheelDesiredDistance, rampFraction); 
-  Serial.println(profile.tf);
-  Serial.println(wheelDesiredDistance);
-  Serial.println(desiredMaxSpeed);
   // Run until final time of the velocity profile + 1 second, in order to
   // allow your motors to catch up if necessary
   nextPDtime = 0;
