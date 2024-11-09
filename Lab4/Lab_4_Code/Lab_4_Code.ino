@@ -39,6 +39,10 @@
 #define SPEED 1
 #define RUN 2
 #define SLOW 3
+#define NORTH 0
+#define EAST 1
+#define SOUTH 2
+#define WEST 3
 
 // Define IR Distance sensor Pins
 #define LeftIR A2
@@ -54,10 +58,10 @@
 HCSR04 frontUS(trig, echo);
 
 // Define the distance tolerance that indicates a wall is present
-#define wallTol 30 //cm
+#define wallTol 15 //cm
 
 // Define the distance tolerance on the front that might cause a crash
-#define crashTol 6 //cm
+#define crashTol 4 //cm
 
 uint8_t currentState = 0;
 
@@ -73,6 +77,7 @@ int moves[50]; // Empty array of 50 moves, probably more than needed, just in ca
 
 int maze[50];
 int distance[50];
+uint8_t pos[2];
 
 ///////////////////////////////////////////////////////////////
 // Two structures for use in this lab.
@@ -103,10 +108,10 @@ float cntCm = 0.955;
 float DistancePerRev = 28;
 float EncoderCountsPerRev = 24;
 float l = 9;
-float cmDegree = (2*3.14*l)/360;
+float cmDegree = (2*3.5*l)/360;
 
-float desiredMaxSpeed = 45; // Input desired speed in cm/s, convert later
-int desiredDistance = 60; // Input desired test distance in cm
+float desiredMaxSpeed = 40; // Input desired speed in cm/s, convert later
+int desiredDistance = 30; // Input desired test distance in cm
 
 volatile unsigned int leftEncoderCount = 0;
 volatile unsigned int rightEncoderCount = 0;
@@ -117,6 +122,7 @@ int printDelay = 200;
 unsigned long nextPrintTime = printDelay;
 float rampFraction = 0.3;
 struct velProfile profile;
+uint8_t currentDirection = NORTH;
 
 void setup() {
   //TODO: Include setup code for any pins other than motors or encoders
@@ -192,22 +198,67 @@ float readFrontDist() {
 void explore() {
   while (digitalRead(pushButton) == 1) { //while maze is not solved
     // Read distances
+    static uint16_t lastcount = 0;
+    static uint8_t ii = 0;
     float rightSide = readRightDist();
     float leftSide = readLeftDist();
     float front = readFrontDist();
+    /*
+    for(uint8_t ii = 0; ii<10&&(front>150||front<5); ii++){
+      float rightSide = readRightDist();
+      float leftSide = readLeftDist();
+      float front = readFrontDist();
+      delay(50);
+    }*/
     uint8_t desiredDirection;
     // If we are at a standstill and want to go forward
     if(currentState == STOPPED&&desiredDirection == FORWARD)
     {
       driveForward(1); // Run acceleration profile
+      
       currentState = RUN;
       Serial.println("Done Accelerating");
     } // If we are accelerated and can only go forwards
-    else if(currentState == RUN && rightSide < wallTol && leftSide < wallTol && front > crashTol)
+    else if(currentState == RUN && rightSide < wallTol && leftSide < wallTol)
     {
       driveForward(2); // Continue to drive forwards
+      if(leftEncoderCount>35+lastcount){
+        Serial.print("moved one square");
+        moves[ii] = 1;
+        ii++;
+        lastcount = leftEncoderCount;
+        if(currentDirection == NORTH){
+          pos[0]++;
+        }else if(currentDirection == SOUTH){
+          pos[0]--;
+        }else if(currentDirection == EAST){
+          pos[1]++;
+        }else if(currentDirection == WEST){
+          pos[1]--;
+        }
+      }
+
     }
-    else
+    else if(rightSide>wallTol && leftSide<wallTol){
+      if(currentDirection == NORTH && idealScores[pos[0], pos[1]+1] >idealScores[pos[0]+1, pos[1]]){
+        run_motor(B, 0);
+        turn(30, 100);
+        currentDirection = EAST;
+      }else if(currentDirection == EAST && idealScores[pos[0]-1, pos[1]] >idealScores[pos[0], pos[1]+1]){
+
+      }else{
+      }
+      driveForward(1);
+      if(currentDirection == NORTH){
+        pos[0]++;
+      }else if(currentDirection == SOUTH){
+        pos[0]--;
+      }else if(currentDirection == EAST){
+        pos[1]++;
+      }else if(currentDirection == WEST){
+        pos[1]--;
+      }
+    }else
     {
       currentState = SLOW;
       Serial.print(rightSide);
@@ -217,11 +268,20 @@ void explore() {
       Serial.println(front);
       Serial.println("Time to stop!");
       driveForward(3);
-      while(true);
+      while(true){
+        Serial.print(rightSide);
+        Serial.print("\t");
+        Serial.print(leftSide);
+        Serial.print("\t");
+        Serial.print(front);
+        Serial.print("\t");
+        Serial.println(moves[0]);
+
+      }
       currentState = STOPPED;
     }
 
-
+    /*
     if (rightSide > wallTol||leftSide>wallTol) {// If side is not a wall
       // turn and drive forward
       // Record actions
@@ -232,7 +292,7 @@ void explore() {
     } else {
       // turn away from side
       // Record action
-    }
+    }*/
   }
 }
 
@@ -255,11 +315,13 @@ void runMaze() {
       j++;
     }
     else {
-      turn(15, moves[i]); // Turn in the specified direction (left or right)
+      run_motor(A, 0);
+      turn(30, moves[i]); // Turn in the specified direction (left or right)
     }
     // Stop the motors after each move
     run_motor(A, 0);
     run_motor(B, 0);
+
   }
   j = 0; // Reset the distance index
 
@@ -286,14 +348,13 @@ void driveForward(int forwardState) {
   // allow your motors to catch up if necessary
   if (forwardState == 1)
   {
-    
+    startTime = millis();
     leftEncoderCount = 0;
     rightEncoderCount = 0;
     int prevEncA = 0;
     int prevEncB = 0;
-    
     nextPDtime = 0;
-    while(millis() - startTime < profile.t1*1000){
+    while(millis() - startTime < profile.t1*1000+100){
       unsigned long now = millis() - startTime;
       run_motor(A, cmdA);
       run_motor(B, cmdB);
@@ -336,8 +397,10 @@ void driveForward(int forwardState) {
     Serial.print("\t");
     Serial.print(rightDist);
     Serial.print("\t");
-    Serial.println(frontDist);
-    float L = 4;
+    Serial.print(frontDist);
+    Serial.print("\t");
+    Serial.println(leftEncoderCount);
+    float L = 1;
     float wallError = leftDist-rightDist;
     run_motor(A, cmdA-(int)(wallError*L));
     Serial.println((int)(wallError*L));
@@ -434,10 +497,13 @@ void turn(float maxAngularSpeed, float degrees) {
   
   //TODO: Give this inputs (see trapezoidal.ino)
   struct velProfile profile = genVelProfile(maxAngularSpeed, wheelDesiredDistance, rampFraction); 
+  Serial.println(profile.tf);
+  Serial.println(wheelDesiredDistance);
+  Serial.println(desiredMaxSpeed);
   // Run until final time of the velocity profile + 1 second, in order to
   // allow your motors to catch up if necessary
   nextPDtime = 0;
-  while (millis() - startTime < profile.tf*1000+100) {
+  while (millis() - startTime < profile.tf*1000+200) {
     unsigned long now = millis() - startTime;
     if(degrees>0){
       run_motor(A, cmdA);
