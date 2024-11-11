@@ -46,7 +46,7 @@
 
 // Define IR Distance sensor Pins
 #define LeftIR A2
-#define RightIR  A1
+#define RightIR  A5
 
 // If using any Ultrasonic - change pins for your needs
 #define trig 4
@@ -58,10 +58,10 @@
 HCSR04 frontUS(trig, echo);
 
 // Define the distance tolerance that indicates a wall is present
-#define wallTol 15 //cm
+#define wallTol 20 //cm
 
 // Define the distance tolerance on the front that might cause a crash
-#define crashTol 4 //cm
+#define crashTol 7 //cm
 
 uint8_t currentState = 0;
 
@@ -200,16 +200,61 @@ void explore() {
     // Read distances
     static uint16_t lastcount = 0;
     static uint8_t ii = 0;
-    float rightSide = readRightDist();
-    float leftSide = readLeftDist();
-    float front = readFrontDist();
-    /*
-    for(uint8_t ii = 0; ii<10&&(front>150||front<5); ii++){
-      float rightSide = readRightDist();
-      float leftSide = readLeftDist();
-      float front = readFrontDist();
-      delay(50);
-    }*/
+    static uint8_t jj = 0;
+    static float rightSide;
+    static float leftSide;
+    static float front;
+    static float avgTotRight;
+    static float avgTotLeft;
+    static float avgTotFront;
+    static float rightRead[8];
+    static float leftRead[8];
+    static float frontRead[8];
+
+    while(jj<8){ // capture sample for averaging sensor inputs
+      rightRead[jj] = readRightDist();
+      avgTotRight += rightRead[jj];
+      leftRead[jj] = readLeftDist();
+      avgTotLeft += leftRead[jj];
+      frontRead[jj] = readFrontDist();
+      avgTotFront += frontRead[jj];
+      jj++;
+    }
+    if(jj+1 <16){ // Calculate average of sensor inputs 
+      jj++;
+      avgTotRight -= rightRead[jj-8];
+      rightRead[jj-8] = readRightDist();
+      avgTotRight += rightRead[jj-8];
+      rightSide = avgTotRight/8;
+
+      avgTotLeft -= leftRead[jj-8];
+      leftRead[jj-8] = readLeftDist();
+      avgTotLeft += leftRead[jj-8];
+      leftSide = avgTotLeft/8;
+
+      avgTotFront -= frontRead[jj-8];
+      frontRead[jj-8] = readFrontDist();
+      avgTotFront += frontRead[jj-8];
+      front = avgTotFront/8;
+
+    } else {
+      jj = 8;
+      avgTotRight -= rightRead[jj-8];
+      rightRead[jj-8] = readRightDist();
+      avgTotRight += rightRead[jj-8];
+      rightSide = avgTotRight/8;
+
+      avgTotLeft -= leftRead[jj-8];
+      leftRead[jj-8] = readLeftDist();
+      avgTotLeft += leftRead[jj-8];
+      leftSide = avgTotLeft/8;
+
+      avgTotFront -= frontRead[jj-8];
+      frontRead[jj-8] = readFrontDist();
+      avgTotFront += frontRead[jj-8];
+      front = avgTotFront/8;
+    }
+
     uint8_t desiredDirection;
     // If we are at a standstill and want to go forward
     if(currentState == STOPPED&&desiredDirection == FORWARD)
@@ -219,7 +264,7 @@ void explore() {
       currentState = RUN;
       Serial.println("Done Accelerating");
     } // If we are accelerated and can only go forwards
-    else if(currentState == RUN && rightSide < wallTol && leftSide < wallTol)
+    else if(currentState == RUN && rightSide < wallTol && leftSide < wallTol && front > crashTol)
     {
       driveForward(2); // Continue to drive forwards
       if(leftEncoderCount>35+lastcount){
@@ -237,18 +282,51 @@ void explore() {
           pos[1]--;
         }
       }
-
     }
     else if(rightSide>wallTol && leftSide<wallTol){
+      run_motor(A, 0);
+      run_motor(B, 0);
+      uint16_t startingCounts = leftEncoderCount;
       if(currentDirection == NORTH && idealScores[pos[0], pos[1]+1] >idealScores[pos[0]+1, pos[1]]){
         run_motor(B, 0);
-        turn(30, 100);
+        turn(30, 110);
+        run_motor(A, 0);
+        run_motor(B, 0);
+        jj = 0;
         currentDirection = EAST;
+        pos[1]++;
       }else if(currentDirection == EAST && idealScores[pos[0]-1, pos[1]] >idealScores[pos[0], pos[1]+1]){
-
-      }else{
+        run_motor(B, 0);
+        turn(30, 110);
+        currentDirection = SOUTH;
+        pos[0]--;
+      }else if(currentDirection == SOUTH && idealScores[pos[0], pos[1]-1] >idealScores[pos[0]-1, pos[1]]){
+        run_motor(B, 0);
+        turn(30, 110);
+        currentDirection = WEST;
+        pos[1]--;
+      }else if(currentDirection == WEST && idealScores[pos[0]+1, pos[1]] >idealScores[pos[0], pos[1]-1]){
+        run_motor(B, 0);
+        turn(30, 110);
+        currentDirection = NORTH;
+        pos[0]++;
       }
-      driveForward(1);
+      else{
+        
+        driveForward(1);
+        if(leftEncoderCount-startingCounts > 30){
+          if(currentDirection == NORTH){
+            pos[0]++;
+          }else if(currentDirection == SOUTH){
+            pos[0]--;
+          }else if(currentDirection == EAST){
+            pos[1]++;
+          }else if(currentDirection == WEST){
+            pos[1]--;
+          }
+        }
+      }
+      
       if(currentDirection == NORTH){
         pos[0]++;
       }else if(currentDirection == SOUTH){
@@ -258,15 +336,27 @@ void explore() {
       }else if(currentDirection == WEST){
         pos[1]--;
       }
-    }else
+    }else if(rightSide>wallTol&&leftSide>wallTol&&front>crashTol){
+      driveForward(1);
+      run_motor(A, 0);
+      run_motor(B, 0);
+      jj=0;
+    } else if (rightSide>wallTol&&leftSide>wallTol&&front<crashTol){
+      if(currentDirection == NORTH&&idealScores[pos[0], pos[1]+1]>=idealScores[pos[0], pos[1]-1]){
+        run_motor(B, 0);
+        turn(30, 110);
+        currentDirection = EAST;
+        pos[0]++;
+      }else{
+        run_motor(B, 0);
+        turn(30, -110);
+        currentDirection = WEST;
+        pos[0]++;
+      }
+    }
+    else
     {
       currentState = SLOW;
-      Serial.print(rightSide);
-      Serial.print("\t");
-      Serial.print(leftSide);
-      Serial.print("\t");
-      Serial.println(front);
-      Serial.println("Time to stop!");
       driveForward(3);
       while(true){
         Serial.print(rightSide);
@@ -280,19 +370,6 @@ void explore() {
       }
       currentState = STOPPED;
     }
-
-    /*
-    if (rightSide > wallTol||leftSide>wallTol) {// If side is not a wall
-      // turn and drive forward
-      // Record actions
-    }
-    else if (front > wallTol) {// else if front is not a wall
-      // drive forward
-      // Record action
-    } else {
-      // turn away from side
-      // Record action
-    }*/
   }
 }
 
@@ -375,7 +452,8 @@ void driveForward(int forwardState) {
         // Get command values from controller (as a byte)
         cmdA = pdController(pwmInA, Vd-VA, Xd-encA, Kp[0], Kd[0]);
         cmdB = pdController(pwmInB, Vd-VB, Xd-encB, Kp[1], Kd[1]);
-
+        Serial.println("cmdA");
+        Serial.println(cmdA);
         // Update previous encoder counts
         prevEncA = encA;
         prevEncB = encB;
@@ -386,47 +464,23 @@ void driveForward(int forwardState) {
     }
   }
   else if(forwardState == 2){
-    // Run - run at max speed till told to do otherwise
-    float leftDist = readLeftDist();
-    float rightDist = readRightDist();
-    float frontDist = readFrontDist();
+    // Run - run at max speed till told to do otherwise and try to keep the robot centered roughly
+    static float leftDist = readLeftDist();
+    static float rightDist = readRightDist();
 
+    cmdA = 112;
+    cmdB = 92;
 
     Serial.println("Driving");
-    Serial.print(leftDist);
-    Serial.print("\t");
-    Serial.print(rightDist);
-    Serial.print("\t");
-    Serial.print(frontDist);
-    Serial.print("\t");
-    Serial.println(leftEncoderCount);
-    float L = 1;
-    float wallError = leftDist-rightDist;
-    run_motor(A, cmdA-(int)(wallError*L));
-    Serial.println((int)(wallError*L));
+    //float L = 4;
+   // float wallError = leftDist-rightDist;
+    //run_motor(A, cmdA-(int)(wallError*L));
+    run_motor(A, cmdA);
+    run_motor(B, cmdB);
     
   } 
   else if(forwardState == 3){
-    // Decelerate - slow down to a stop
-
-    /*
-    float Xd = 0;
-    float Vd = 0;
-    float VA = 0;
-    float VB = 0;
-    int encA = 0;
-    int encB = 0;
-
-    // Reset encoder counts at the beginning of the movement.
-    unsigned long startTime = millis();
-    int cmdA = 0;
-    int cmdB = 0;
-    leftEncoderCount = 0;
-    rightEncoderCount = 0;
-    int prevEncA = 0;
-    int prevEncB = 0;
-    */
-    
+    // Decelerate - slow down to a stop    
     nextPDtime = 0;
     Serial.println("Beginning slowdown");
     
@@ -503,7 +557,7 @@ void turn(float maxAngularSpeed, float degrees) {
   // Run until final time of the velocity profile + 1 second, in order to
   // allow your motors to catch up if necessary
   nextPDtime = 0;
-  while (millis() - startTime < profile.tf*1000+200) {
+  while (millis() - startTime < profile.tf*1000+300) {
     unsigned long now = millis() - startTime;
     if(degrees>0){
       run_motor(A, cmdA);
@@ -523,8 +577,8 @@ void turn(float maxAngularSpeed, float degrees) {
       VA = (encA - prevEncA) * 1000.0/PDdelay;
       VB = (encB - prevEncB) * 1000.0/PDdelay;
       // Feed-forward values of pwm for speed based on max speed
-      float pwmInA = map(Vd, 0, maxSpeedA, 80, 255); 
-      float pwmInB = map(Vd, 0, maxSpeedB, 60, 255);
+      float pwmInA = map(Vd, 0, maxSpeedA, 90, 255); 
+      float pwmInB = map(Vd, 0, maxSpeedB, 70, 255);
 
       // Get command values from controller (as a byte)
       cmdA = pdController(pwmInA, Vd-VA, Xd-encA, 6, 0.3);
