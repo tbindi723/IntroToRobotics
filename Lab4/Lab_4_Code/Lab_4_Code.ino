@@ -189,7 +189,7 @@ void explore() {
     float front = readFrontDist();
     uint8_t desiredDirection;
     // If we are at a standstill and want to go forward
-    if(currentState == STOPPED&&desiredDirection == FORWARD)
+    if(currentState == STOPPED && desiredDirection == FORWARD)
     {
       driveForward(1); // Run acceleration profile
       currentState = RUN;
